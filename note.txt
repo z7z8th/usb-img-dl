@@ -1,0 +1,1 @@
+while [ ! -e '/dev/sg5' ]; do sleep 0.5; done; ./main.py

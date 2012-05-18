@@ -2,20 +2,11 @@
 
 import py_sg
 import os, io
+from debug_util import *
 
 debug = True
 NULL_CHAR  = '\x00'
 SECTOR_SIZE = 512
-
-def print_str_hex(str):
-    for x in str:
-        print "0x%02x" % ord(x),
-    print
-
-def print_int_arr_hex(str):
-    for x in str:
-        print "0x%02x" % x,
-    print
 
 READ_CAPACITY = '\x25'
 
@@ -36,7 +27,7 @@ def read_lastblock_num(sg_path):
     blocksize =  (rd_cap_buff[4]<<24)|(rd_cap_buff[5]<<16)| \
             (rd_cap_buff[6]<<8)|(rd_cap_buff[7])
     if debug:
-        print "response: ", len(response), " : ",
+#        print "response: ", len(response), " : ",
         print_str_hex(response)
         disk_cap = (lastblock+1) * blocksize
         print "lastblock=", lastblock
@@ -74,7 +65,7 @@ def read_blocks(sg_path, sector_offset, sector_num):
 
 WRITE_10='\x2a'
 def write_blocks(sg_path, buf, sector_offset, sector_num):
-    print "write_blocks"
+#    print "write_blocks"
     cmd = WRITE_10 + NULL_CHAR
     cmd += chr((sector_offset>>24) & 0xFFl)
     cmd += chr((sector_offset>>16) & 0xFFl)
@@ -84,8 +75,8 @@ def write_blocks(sg_path, buf, sector_offset, sector_num):
     cmd += chr((sector_num>>8) & 0xFFl)
     cmd += chr(sector_num & 0xFFl)
     cmd += NULL_CHAR
-    print "cmd=",
-    print_str_hex(cmd)
+#    print "cmd=",
+#    print_str_hex(cmd)
 
     sg_fd = open(sg_path, 'w')
     try:
