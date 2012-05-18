@@ -47,8 +47,8 @@ def read_lastblock_num(sg_path):
 
 
 READ_10='\x28'
-def read_block(sg_path, sector_offset, sector_num):
-    print "read_block"
+def read_blocks(sg_path, sector_offset, sector_num):
+    print "read_blocks"
     cmd = READ_10 + NULL_CHAR
     cmd += chr((sector_offset>>24) & 0xFFl)
     cmd += chr((sector_offset>>16) & 0xFFl)
@@ -70,4 +70,31 @@ def read_block(sg_path, sector_offset, sector_num):
     #read_buf = [ord(one_char) for one_char in response]
     read_buf = response
     return read_buf
+
+
+WRITE_10='\x2a'
+def write_blocks(sg_path, buf, sector_offset, sector_num):
+    print "write_blocks"
+    cmd = WRITE_10 + NULL_CHAR
+    cmd += chr((sector_offset>>24) & 0xFFl)
+    cmd += chr((sector_offset>>16) & 0xFFl)
+    cmd += chr((sector_offset>>8) & 0xFFl)
+    cmd += chr(sector_offset & 0xFFl)
+    cmd += NULL_CHAR
+    cmd += chr((sector_num>>8) & 0xFFl)
+    cmd += chr(sector_num & 0xFFl)
+    cmd += NULL_CHAR
+    print "cmd=",
+    print_str_hex(cmd)
+
+    sg_fd = open(sg_path, 'w')
+    try:
+        response = py_sg.write(sg_fd, cmd, buf, 2000 )
+    except py_sg.SCSIError as e:
+        print "SCSIError: %s" % e
+        return False
+    except OSError as e:
+        print "OSError: ", e
+        return False
+    return True
 
