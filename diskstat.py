@@ -1,7 +1,5 @@
-down vote accepted
-    
-
-In case anyone else is trying to parse /proc/diskstats with Python like Alex suggested:
+#down vote accepted
+#In case anyone else is trying to parse /proc/diskstats with Python like Alex suggested:
 
 def diskstats_parse(dev=None):
     file_path = '/proc/diskstats'
@@ -35,3 +33,5 @@ def diskstats_parse(dev=None):
         result[data['dev']] = data
 
     return result
+
+diskstats_parse()
