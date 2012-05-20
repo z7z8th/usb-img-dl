@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 
-import py_sg
-import os, io
+from const_vars import *
 from debug_util import *
+import py_sg
 
-debug = True
-NULL_CHAR  = '\x00'
-SECTOR_SIZE = 512
 
 READ_CAPACITY = '\x25'
-
-def read_lastblock_num(sg_path):
+def get_dev_block_info(sg_path):
     cmd = READ_CAPACITY + NULL_CHAR * 9  #READ_CAPACITY
     print_str_hex(cmd)
     buf = [0,0,0,0, 0,0,0,0]
@@ -88,4 +84,8 @@ def write_blocks(sg_path, buf, sector_offset, sector_num):
         print "OSError: ", e
         return False
     return True
+
+if __name__ == "__main__":
+    import sys
+    print get_dev_block_info(sys.argv[1])
 
