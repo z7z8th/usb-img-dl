@@ -1,6 +1,9 @@
 import os
+import io
+import sys
 from debug_util import *
 from const_vars import *
+
 
 PACKAGE_HEADER_MAGIC_PATTERN = "(^_^)y :-)(^~~^)"
 PACKAGE_HEADER_PLATFORM      = "iM9828"
@@ -35,12 +38,31 @@ img_type_dict = {
 0xC : "IMG_MAX"
 }
 
-img_pos_in_bsp = dict()
 
-def check_bsp_pkg(pkg_path):
+def copy_img_from_pkg(pkg_fd, img_fd, img_size):
+    size_per_copy = 1<<15  # 512kB
+    size_copyed = 0
+    img_size_org = img_size
+    while img_size > 0:
+        if img_size < size_per_copy:
+            size_per_copy = img_size
+        buf = pkg_fd.read(size_per_copy)
+        #img_fd.write(buf)
+        size_copyed += len(buf)
+        img_size -= size_per_copy
+    info("%d of %d bytes writed" % (size_copyed, img_size_org))
+    img_fd.flush()
+    os.fsync(img_fd)
+
+def extract_bsp_pkg(pkg_path, dest_dir):
     if not os.path.exists(pkg_path):
         warn(pkg_path + " does not exists")
         return False
+    if os.path.exists(dest_dir) and not os.path.isdir(dest_dir):
+        wtf(dest_dir + " exists and is not a dir!")
+    if not os.path.exists(dest_dir):
+        os.mkdir(dest_dir)
+
     ret = False
     pkg_fd = open(pkg_path, 'rb')
     if pkg_fd:
@@ -52,7 +74,7 @@ def check_bsp_pkg(pkg_path):
     magic_name = pkg_fd.read(16)
     info("magic_name='%s'" % magic_name)
     while magic_name == PACKAGE_HEADER_MAGIC_PATTERN:
-        image_size  = 0
+        img_size  = 0
         img_type = 0
         position += 16
         pkg_fd.seek(position, os.SEEK_SET)
@@ -73,18 +95,22 @@ def check_bsp_pkg(pkg_path):
             file_str = pkg_fd.read(128)
 
             position += 128 + 48
-            image_size = int(partition_size, 16)
-            info("partition_size='%s'=%d" % (partition_size, image_size))
+            img_size = int(partition_size, 16)
+            info("partition_size='%s'=%d" % (partition_size, img_size))
             img_type = int(content,16)
             info("img_type=%X='%s'" % ( img_type, img_type_dict[img_type]))
-            tmp = image_size + SECTOR_SIZE - image_size % SECTOR_SIZE
-            if img_type == IMG_SYSTEM or \
-                    img_type == IMG_M_DATA or \
-                    img_type == IMG_USER_DATA:
-                img_pos_in_bsp[img_type] = (position, image_size)
-            else:
-                img_pos_in_bsp[img_type] = (position, tmp)
-            position += tmp
+            # copy the img from bsp pkg to file
+            img_file_name = img_type_dict[img_type][4:].lower() + ".img"
+            img_file_path = os.path.join(dest_dir, img_file_name)
+            info("output img to: " + img_file_path)
+            if os.path.exists(img_file_path):
+                warn("overwrite img: " + img_file_path)
+            img_fd = open(img_file_path, 'wb')
+            copy_img_from_pkg(pkg_fd, img_fd,img_size)
+            img_fd.close()
+
+            img_size_align = img_size + SECTOR_SIZE - img_size % SECTOR_SIZE
+            position += img_size_align
         elif platform_name == PACKAGE_TAIL_PLATFORM:
             ret = True
             break
@@ -100,8 +126,8 @@ def check_bsp_pkg(pkg_path):
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 2 or \
-            not os.path.exists(sys.argv[1]):
-        wtf("usage: %s BSP_Package_path" % sys.argv[0])
-    check_bsp_pkg(sys.argv[1])
-    print img_pos_in_bsp
+    if len(sys.argv) != 3 or \
+            not os.path.exists(sys.argv[1]) or \
+            not os.path.exists(sys.argv[2]):
+        wtf("usage: %s BSP_Package_path  Dir_extract_to" % sys.argv[0])
+    extract_bsp_pkg(sys.argv[1], sys.argv[2])

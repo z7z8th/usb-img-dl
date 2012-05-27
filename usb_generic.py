@@ -10,11 +10,12 @@ def get_dev_block_info(sg_path):
     cmd = READ_CAPACITY + NULL_CHAR * 9  #READ_CAPACITY
     print_str_hex(cmd)
     buf = [0,0,0,0, 0,0,0,0]
-    sg_fd = open(sg_path, 'r')
+    sg_fd = open(sg_path, 'rb')
     try:
         response = py_sg.read(sg_fd, cmd, 8, 2000)
     except py_sg.SCSIError as e:
         print "SCSIError: ", e
+        sg_fd.close()
         return (None, None)
 
     rd_cap_buff = [ord(one_char) for one_char in response]
@@ -30,6 +31,7 @@ def get_dev_block_info(sg_path):
         print "blocksize=", blocksize
         print "capacity=%lu" % disk_cap
         print "capacity=%f GB" % ( disk_cap/1024.0/1024.0/1024.0 )
+    sg_fd.close()
     return lastblock, blocksize
 
 
@@ -48,14 +50,16 @@ def read_blocks(sg_path, sector_offset, sector_num):
     print "cmd=",
     print_str_hex(cmd)
 
-    sg_fd = open(sg_path, 'r')
+    sg_fd = open(sg_path, 'rb')
     try:
         response = py_sg.read(sg_fd, cmd, sector_num * SECTOR_SIZE, 2000 )
     except py_sg.SCSIError as e:
         print "SCSIError: ", e
+        sg_fd.close()
         return None
     #read_buf = [ord(one_char) for one_char in response]
     read_buf = response
+    sg_fd.close()
     return read_buf
 
 
@@ -74,16 +78,17 @@ def write_blocks(sg_path, buf, sector_offset, sector_num):
 #    print "cmd=",
 #    print_str_hex(cmd)
 
-    sg_fd = open(sg_path, 'w')
+    sg_fd = open(sg_path, 'wb')
+    ret = False
     try:
         response = py_sg.write(sg_fd, cmd, buf, 2000 )
+        ret = True
     except py_sg.SCSIError as e:
         print "SCSIError: %s" % e
-        return False
     except OSError as e:
         print "OSError: ", e
-        return False
-    return True
+    sg_fd.close()
+    return ret
 
 if __name__ == "__main__":
     import sys
