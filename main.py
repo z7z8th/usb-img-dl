@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from common import *
+from const_vars import *
+from debug_util import *
 from check_bsp_pkg import *
 from usb_probe_dev import get_im_disk_path
 

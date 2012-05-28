@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from common import *
+from const_vars import *
+from debug_util import *
 import sys
 import glob
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
@@ -140,5 +141,12 @@ def get_im_disk_path():
 
 
 if __name__ == "__main__":
-    get_im_disk_path()
+    import time
+    while True:
+        ret = get_im_disk_path()
+        if ret:
+            print ret
+            exit(0)
+        time.sleep(0.5)
+        print ".",
 
