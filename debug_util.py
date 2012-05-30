@@ -1,6 +1,10 @@
 import io, os
+import inspect
 #import logging
 from termcolor import colored
+
+def dbg(msg):
+    print colored(msg, 'magenta')
 
 
 def info(msg):
@@ -30,3 +34,5 @@ def print_int_arr_hex(str):
         print "0x%02x" % x,
     print
 
+def get_cur_func_name():
+    return inspect.stack()[1][3]

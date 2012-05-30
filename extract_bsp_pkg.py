@@ -47,7 +47,7 @@ def copy_img_from_pkg(pkg_fd, img_fd, img_size):
         if img_size < size_per_copy:
             size_per_copy = img_size
         buf = pkg_fd.read(size_per_copy)
-        #img_fd.write(buf)
+        img_fd.write(buf)
         size_copyed += len(buf)
         img_size -= size_per_copy
     info("%d of %d bytes writed" % (size_copyed, img_size_org))
@@ -95,6 +95,8 @@ def extract_bsp_pkg(pkg_path, dest_dir):
             file_str = pkg_fd.read(128)
 
             position += 128 + 48
+            pkg_fd.seek(position, os.SEEK_SET)
+
             img_size = int(partition_size, 16)
             info("partition_size='%s'=%d" % (partition_size, img_size))
             img_type = int(content,16)
