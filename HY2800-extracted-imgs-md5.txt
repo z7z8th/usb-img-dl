@@ -1,0 +1,9 @@
+61d8d6da8677d16710beaf34750fc836  barebox.img
+8371cffcf9ae22d113ded5f3addd0227  bootimg.img
+142652271779fc3314fa59a55d3d69b6  icon.img
+75e63e6ee8b18d4b55e6cc49f7185d0d  ldr_app.img
+39545bc6363146bb70b0df71452c84bb  m_data.img
+34059b868dc0512f1e3fdeebdb79dda7  modem.img
+ec7fc0c213f8716226743ea49933b074  recovery.img
+8a615fef62324b22dfc04d51ac5dac96  system.img
+ea5dd8ab6db6bfe40cdb8e3f26358276  user_data.img
