@@ -90,6 +90,22 @@ def write_blocks(sg_path, buf, sector_offset, sector_num):
     sg_fd.close()
     return ret
 
+
+def write_large_buf(sg_fd, buf, sector_offset):
+    img_total_size = len(large_buf)
+    dbg(get_cur_func_name() + ": img_total_size=%d" % img_total_size)
+    dbg(get_cur_func_name() + ": total sector num=%f" % \
+            float(img_total_size)/SECTOR_SIZE)
+    size_written = 0
+    while size_written < img_total_size:
+        buf_end_offset = min(img_total_size, size_written + SIZE_PER_WRITE)
+        sector_num_write = (buf_end_offset - size_written + \
+                SECTOR_SIZE - 1)/SECTOR_SIZE
+        buf = large_buf[size_written : buf_end_offset]
+        write_blocks(sg_fd, buf, sector_offset, sector_num_write)
+        size_written += SIZE_PER_WRITE
+        sector_offset += sector_num_write
+
 if __name__ == "__main__":
     import sys
     print get_dev_block_info(sys.argv[1])

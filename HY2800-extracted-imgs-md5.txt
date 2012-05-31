@@ -7,3 +7,4 @@
 ec7fc0c213f8716226743ea49933b074  recovery.img
 8a615fef62324b22dfc04d51ac5dac96  system.img
 ea5dd8ab6db6bfe40cdb8e3f26358276  user_data.img
+b30d3a6c3e68b9a862b03ff5b00485e3  HY2800_20120413
