@@ -5,6 +5,7 @@ from debug_util import *
 from util import *
 from const_vars import *
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
+import struct
 
 
 # download second boot loader to RAM
@@ -71,10 +72,68 @@ def usb_burn_raw(sg_fd, img_buf, start_addr_hw, img_len_hw):
     img_total_size = len(img_buf)
     write_large_buf(sg_fd, img_buf, sector_offset)
 
+
 def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
     erase_len = 0
-    if CFG_MAX_ERASE_SIZE:
-        
+    #if CFG_MAX_ERASE_SIZE:
+    #    
+    num_of_data_group_sector = 8
+    num_of_space_area_group_sector = 8
+    num_cnt_to_bb_per_time = SIZE_PER_WRITE / SECTOR_SIZE / num_of_data_group_sector
+    dbg( "num_cnt_to_bb_per_time=%d" % num_cnt_to_bb_per_time)
+    raw_data_cnt = 0
+    sector_offset = start_addr_hw / SECTOR_SIZE
+    data_buf = NULL_CHAR * SECTOR_SIZE
+    ret = False
+    img_total_size = len(img_buf)
+    yaffs_head_id = str_to_int32(img_buf[0:4])
+    yaffs_version = str_to_int32(img_buf[4:8])
+    yaffs_byte_per_chunk = str_to_int32(img_buf[8:12])
+    yaffs_byte_per_spare = str_to_int32(img_buf[12:16])
+
+    yaffs_img_header = struct.pack('LLL', yaffs_head_id, \
+            yaffs_version, yaffs_byte_per_chunk, yaffs_byte_per_spare)
+    if yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version = YAFFS_VERSION_4096:
+        num_of_data_group_sector = 8
+        num_of_space_area_group_sector = 8
+        # DataBuf += sizeof header
+        #size -= sizeof header
+    elif  yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version = YAFFS_VERSION_2048:
+        num_of_data_group_sector = 4
+        num_of_space_area_group_sector = 4
+    else
+        num_of_data_group_sector = 4
+        num_of_space_area_group_sector = 4
+        err("the program should not go here, something must be wrong")
+
+    num_cnt_to_bb_per_time = SIZE_PER_WRITE / SECTOR_SIZE / num_of_data_group_sector
+    buf = ctypes.create_string_buf(NULL_CHAR*SECTOR_SIZE, SECTOR_SIZE)
+    buf[0] = '\x01'
+    write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
+    buf = NULL_CHAR * SECTOR_SIZE
+    buf[0:4] = int32_to_str(start_addr_hw)
+    buf[4:8] = int32_to_str(img_len_hw)
+    write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
+    start_addr_erase_hw = start_addr_hw
+    img_len_erase_hw = img_len_hw
+    erase_len = NAND_ERASE_MAX_LEN_PER_TIME
+    while img_len_erase_hw > 0:
+        buf = NULL_CHAR * SECTOR_SIZE
+        if img_len_erase_hw < NAND_ERASE_MAX_LEN_PER_TIME:
+            erase_len = img_len_erase_hw
+        buf[0:4] = int32_to_str(start_addr_hw)
+        buf[4:8] = int32_to_str(erase_len)
+        start_addr_erase_hw += erase_len
+        img_len_erase_hw -= erase_len
+        write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
+
+
+
+
+
+
+
+    
 
 
 
