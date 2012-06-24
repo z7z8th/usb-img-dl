@@ -3,8 +3,11 @@ import inspect
 #import logging
 from termcolor import colored
 
+from config import *
+
 def dbg(msg):
-    print colored(msg, 'magenta')
+    if(debug):
+        print colored(msg, 'magenta')
 
 
 def info(msg):

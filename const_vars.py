@@ -1,7 +1,9 @@
-debug = True
-NULL_CHAR  = '\x00'
-SECTOR_SIZE = 512
+######################################################
+## only constant var can be defined in this file
+######################################################
 
+
+NULL_CHAR  = '\x00'
 
 ##### usb read
 
@@ -13,6 +15,11 @@ USB_PROGRAMMER_GET_IMG_ADDR_BY_ID = 0x00000011
 USB_PROGRAMMER_GET_NAND_SPARE_DATA = 0x00000012
 
 ##### usb write
+
+# download second boot loader to RAM
+DOWNLOAD_TYPE_RAM = 2
+# download code to flash directory
+DOWNLOAD_TYPE_FLASH = 1
 
 USB_PROGRAMMER_SET_PROG_MODE_CMD = 0x50000100
 
@@ -40,15 +47,18 @@ USB_PROGRAMMER_SET_NAND_PARTITION_INFO = 0x50000303
 
 USB_PROGRAMMER_FINISH_MAGIC_WORD = 0x5a5a5a5a
 
+# WmDropFiles
+CFG_IM9828_NUCLEUS = True
+CFG_IM9828_ECOS = True
 
-SECTOR_SIZE          = 0x200	                # 512 
-SECTOR_NUM_PER_OP    = 0x80	                    # 128 
+SECTOR_SIZE          = 0x200                    # 512 
+SECTOR_NUM_PER_OP    = 0x80                        # 128 
 SECTOR_NUM_PER_WRITE = SECTOR_NUM_PER_OP        # 128 
 SECTOR_NUM_PER_READ  = SECTOR_NUM_PER_OP        # 128 
 YAFFS2_2K_SIZE       = 4 * SECTOR_SIZE          # 2048 
 YAFFS2_SPARE2K_SIZE  = 4 * SECTOR_SIZE / 32     # 64 
-SIZE_PER_WRITE       = SECTOR_NUM_PER_WRITE * SECTOR_SIZE	  # 65536 
-SIZE_PER_READ        = SECTOR_NUM_PER_READ  * SECTOR_SIZE	  # 65536 
+SIZE_PER_WRITE       = SECTOR_NUM_PER_WRITE * SECTOR_SIZE      # 65536 
+SIZE_PER_READ        = SECTOR_NUM_PER_READ  * SECTOR_SIZE      # 65536 
 
 
 # 1228 Partition = 
@@ -60,7 +70,7 @@ DYN_ID_INIT_LENGTH = (15*0x00020000)
 DYN_ID_SIZE = 0x00020000
 
 # IMEI = 
-IMEI_SECTOR_NUM = 0x8	# 8 
+IMEI_SECTOR_NUM = 0x8    # 8 
 IMEI_SN_DATA_SIZE = 0x00000080
 IMEIR_SN_SECTOR_SIZE = 0x00002000
 
@@ -127,3 +137,121 @@ yaffs_chunkSize_2K  = 2048
 yaffs_chunkSize_4K  = 4096
 yaffs_spareSize_2K  = 64
 yaffs_spareSize_4K  = 128
+
+
+#enum NAND_IMG_Type
+RAWDATA        = 0x0
+YAFFS2        = 0x1
+DYN_ID        = 0x2
+
+# 1228 Program Image Type
+#enum PROG_IMG_Type
+IMG_BAREBOX                     = 0x1
+IMG_LDR_APP                     = 0x2
+IMG_MODEM                       = 0x3
+IMG_BOOTIMG                     = 0x4
+IMG_RECOVERY                    = 0x5
+IMG_SYSTEM                      = 0x6
+IMG_M_DATA                      = 0x7
+IMG_USER_DATA                   = 0x8
+IMG_IMEI                        = 0x9
+IMG_BAREBOX_ENV                 = 0xA
+IMG_ICON                        = 0xB
+IMG_MAX                         = 0xC
+
+PROG_M_NUM = (IMG_MAX-1)
+
+# Dyn ID 
+ID_NULL                         = 99
+#enum DYN_ID_Type
+ID_BAREBOX                      = 0x0
+ID_BAREBOX_ENV                  = 0x1
+ID_LDR_APP                      = 0x2
+ID_IMEI                         = 0x3
+ID_ICON                         = 0x4
+
+# 1228 Two Stage Download Type
+#enum TWO_STAGE_DL_Type
+TWO_STAGE_ZERO_OP               = 0x0
+TWO_STAGE_SINGLE                = 0x1
+TWO_STAGE_PACKAGE               = 0x2
+TWO_STAGE_IMEI                  = 0x3
+TWO_STAGE_ERASE                 = 0x4
+TWO_STAGE_DUMP                  = 0x5
+
+#enum IMEI_SN_Type
+IMEISN_IMEI1                    = 0x1
+IMEISN_SN                       = 0x2
+IMEISN_IMEI_SV                  = 0x3
+IMEISN_ID                       = 0x4
+IMEISN_IMEI2                    = 0x5
+IMEISN_BTMAC                    = 0x6
+
+
+# extract bsp pkg_fd
+
+PACKAGE_HEADER_MAGIC_PATTERN = "(^_^)y :-)(^~~^)"
+PACKAGE_HEADER_PLATFORM      = "iM9828"
+PACKAGE_TAIL_MAGIC_PATTERN   = "(^~~^)(-: y(^_^)"
+PACKAGE_TAIL_PLATFORM        = "im98xx"
+
+img_type_dict = {
+0x1 : "IMG_BAREBOX",
+0x2 : "IMG_LDR_APP",
+0x3 : "IMG_MODEM",
+0x4 : "IMG_BOOTIMG",
+0x5 : "IMG_RECOVERY",
+0x6 : "IMG_SYSTEM",
+0x7 : "IMG_M_DATA",
+0x8 : "IMG_USER_DATA",
+0x9 : "IMG_IMEI",
+0xA : "IMG_BAREBOX_ENV",
+0xB : "IMG_ICON",
+0xC : "IMG_MAX"
+}
+
+
+
+major_version = 0
+minor_version = 0
+small_version = 0
+
+dl_major_version = 0
+dl_minor_version = 0
+dl_small_version = 0
+
+TwoStageDownload = TWO_STAGE_ZERO_OP
+
+dl_ram_version_check = FALSE
+#  To make sure user version is ready to download 
+userModeOfDownloader = 0  #temp val, set randomly by me
+
+# Default
+hw_new_flag = 1
+# DYN_ID Raw Data 
+hw_misc_offset = IM9828_MISC_OFFSET
+hw_misc_len = IM9828_MISC_LENGTH
+
+# Raw Data 
+hw_ps_modem_offset = PS_MODEM_OFFSET
+hw_ps_modem_len = PS_MODEM_LENGTH
+
+hw_bootimg_offset = BOOTIMG_OFFSET
+hw_bootimg_len = BOOTIMG_LENGTH
+
+hw_recovery_offset = RECOVERY_OFFSET
+hw_recovery_len = RECOVERY_LENGTH
+
+# Yaffs2 
+hw_mdata_offset = MDATA_OFFSET
+hw_mdata_len = MDATA_LENGTH
+
+hw_system_offset = SYSTEM_OFFSET
+hw_system_len = SYSTEM_LENGTH
+
+hw_udata_offset = UDATA_OFFSET
+hw_udata_len = UDATA_LENGTH
+
+hw_cache_offset = CACHE_OFFSET
+hw_cache_len = CACHE_LENGTH
+

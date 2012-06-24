@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from const_vars import *
+from config import *
 from debug_util import *
 from utils import *
 import py_sg

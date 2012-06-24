@@ -8,28 +8,6 @@ from usb_generic import read_blocks, write_blocks, get_dev_block_info
 import struct
 
 
-# download second boot loader to RAM
-DOWNLOAD_TYPE_RAM = 2
-# download code to flash directory
-DOWNLOAD_TYPE_FLASH = 1
-
-# Command to tell Magic that the image boot from RAM or FLASH
-USB_PROGRAMMER_SET_BOOT_DEVICE = 0x50000200
-# Command to tell Magic that the image boot from which address
-USB_PROGRAMMER_SET_BOOT_ADDR = 0x50000204
-
-ID_BAREBOX     = 0x0
-ID_BAREBOX_ENV = 0x1
-ID_LDR_APP     = 0x2
-ID_IMEI        = 0x3
-ID_ICON        = 0x4
-
-DYN_ID_INIT_OFFSET = 0x00020000
-DYN_ID_INIT_LENGTH = (15*0x00020000)
-DYN_ID_SIZE        = 0x00020000
-
-
-
 def set_dl_img_type(sg_fd, dl_img_type, start_addr_hw):
     buf = chr(dl_img_type) + NULL_CHAR * (SECTOR_SIZE - 1)
     print buf

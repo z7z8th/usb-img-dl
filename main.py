@@ -3,8 +3,172 @@
 from const_vars import *
 from debug_util import *
 from check_bsp_pkg import *
-from usb_probe_dev import get_im_disk_path
+from usb_probe_dev import wait_and_get_im_sg_path
+from optparse import OptionParser
+import time
+from mmap import mmap
+
+type_call_dict = { 
+        'b': ("barebox", 'dyn_id'),
+        'B': ('boot', 'raw'),
+        'r': ('recovery', 'raw'),
+        's': ('system', 'yaffs'),
+        'm': ('modem-or-ecos', 'raw'),
+        'c': ('charging-icon', 'dyn_id'),
+        'u': ('user-data', 'yaffs'),
+        'M': ('machine-data', 'yaffs'),
+        'i': ('IMEI-data', 'dyn_id'),
+        'd': ('barebox-data', 'dyn_id'),
+        'R': ('RAM-SD-loader', ''),
+        }
 
 
-disk_path = get_im_disk_path()
-ret = check_bsp_pkg(sys.argv[1])
+# Dyn ID 
+ID_NULL                         = 99
+#enum DYN_ID_Type
+ID_BAREBOX                      = 0x0
+ID_BAREBOX_ENV                  = 0x1
+ID_LDR_APP                      = 0x2
+ID_IMEI                         = 0x3
+ID_ICON                         = 0x4
+
+type_dyn_id_dict = {
+        'b' : ID_BAREBOX,
+        'd' : ID_BAREBOX_ENV,
+        'R' : ID_LDR_APP,
+        'i' : ID_IMEI,
+        'c' : ID_ICON,
+        }
+
+# Default
+hw_new_flag = 1
+# DYN_ID Raw Data 
+hw_misc_offset = IM9828_MISC_OFFSET
+hw_misc_len = IM9828_MISC_LENGTH
+
+# Raw Data 
+hw_ps_modem_offset = PS_MODEM_OFFSET
+hw_ps_modem_len = PS_MODEM_LENGTH
+
+hw_bootimg_offset = BOOTIMG_OFFSET
+hw_bootimg_len = BOOTIMG_LENGTH
+
+hw_recovery_offset = RECOVERY_OFFSET
+hw_recovery_len = RECOVERY_LENGTH
+
+# Yaffs2 
+hw_mdata_offset = MDATA_OFFSET
+hw_mdata_len = MDATA_LENGTH
+
+hw_system_offset = SYSTEM_OFFSET
+hw_system_len = SYSTEM_LENGTH
+
+hw_udata_offset = UDATA_OFFSET
+hw_udata_len = UDATA_LENGTH
+
+hw_cache_offset = CACHE_OFFSET
+hw_cache_len = CACHE_LENGTH
+
+type_raw_off_len_dict = {
+        'm' : (PS_MODEM_OFFSET, PS_MODEM_LENGTH),
+        'B' : (BOOTIMG_OFFSET,  BOOTIMG_LENGTH),
+        'r' : (RECOVERY_OFFSET, RECOVERY_LENGTH),
+        }
+type_yaffs_off_len_dict = {
+        'M' : (MDATA_OFFSET,  MDATA_LENGTH),
+        's' : (SYSTEM_OFFSET, SYSTEM_LENGTH),
+        'u' : (UDATA_OFFSET,  UDATA_LENGTH),
+        }
+
+
+#call_func_dict = {
+
+USAGE_MSG_HEADER = "usage: %prog <options> <args> [path/to/img...]\n" \
+"available partition/img type list are:\n"
+for type in type_call_dict.iterkeys():
+    USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type][0])
+USAGE_MSG_HEADER += "\nif you specify more than one of dump/erase/burn,\n" \
+        "dump will go first, then erase, then burn.\n"\
+        "burn will always be last action"
+
+print USAGE_MSG_HEADER
+
+
+def main():
+    parser = OptionParser(USAGE_MSG_HEADER)
+    parser.add_option("-b", "--burn", type="string", dest="burn_list", \
+            metavar="IMG_PATTERN",
+            help="burn img to board: %metavar is a combination of partition/img" \
+                 "i.e.: '-b Bsu' means to burn Boot,System,UserData to board")
+    parser.add_option("-e", "--erase", type="string", dest="erase_list", \
+            metavar="PART_PATTERN", 
+            help="erase nand partitions: %metavar is a combination of partition/img" \
+                 "i.e.: '-e Bsu' means to erase Boot,System,UserData of board")
+    parser.add_option("-d", "--dump", type="string", dest="dump_list", \
+            metavar="PART_LIST",
+            help="dump nand partitions: %metavar is a combination of partition/img" \
+                 "i.e.: '-d Bsu' means to dump Boot,System,UserData to file" \
+                 "the partition will dump to file with pattern: " \
+                 "<PART_TYPE>.img-dumped-<TIME>")
+    parser.add_option("-A", "--erase-all", action="store_true", dest="erase_all",
+            help="erase the whole nand flash")
+    parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
+            help="say yes to all additional confirmation")
+    options, args = parser.parse_args()
+    img_paths = args
+    dbg(options)
+    dbg(args)
+    type_call_keys = set(type_call_dict.keys())
+    burn_list = set(options.burn_list) if options.burn_list  else set()
+    erase_list = set(options.erase_list) if options.erase_list else set()
+    dump_list = set(options.dump_list) if options.dump_list else set()
+    for s in [burn_list, erase_list, dump_list]:
+        if len(s) != len(s & type_call_keys):
+            wtf("%s contains invalid partition/img types: %s" 
+                    % (str(list(s)), str(list(s - type_call_keys))))
+
+    if len(options.burn_list) != len(burn_list):
+        wtf("you have specified duplicated value for --burn")
+    if options.burn_list and len(options.burn_list) != len(args):
+        wtf("you ask to burn %d imgs, but %d path/to/imgs specified." \
+              " their count should equal" % (len(options.burn_list), len(args)) )
+
+
+    for p in img_paths:
+        if not os.path.isfile(p):
+            wtf(p + " isn't a file")
+
+    dbg(burn_list)
+    dbg(erase_list)
+    dbg(dump_list)
+
+    sg_path = wait_and_get_im_sg_path()
+    with open(sg_path, 'r+b') as sg_fd:
+        for d in dump_list:
+            dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
+                    time.strftime("%Y%m%d_%H%M%S", time.localtime())
+            info("dump "+type_call_dict[d][0]+" -> "+dumped_path)
+
+        for e in erase_list:
+            info("erase "+type_call_dict[e][0])
+
+        for i,b in enumerate(options.burn_list):
+            info("burn "+img_paths[i]+" as type "+type_call_dict[b][0])
+            with open(img_paths[i], 'rb') as img_fd:
+                img_buf = mmap(img_fd.fileno(), 0)
+                if type_call_dict[b][1] == 'dyn_id':
+                    usb_burn_dyn_id(sg_fd, img_buf, type_dyn_id_dict[b])
+                elif type_call_dict[b][1] == 'raw':
+                    usb_burn_raw(sg_fd, img_buf, 
+                            type_raw_off_len_dict[b][0], 
+                            type_raw_off_len_dict[b][1])
+                elif type_call_dict[b][1] == 'yaffs':
+                    usb_burn_yaffs2(sg_fd, img_buf,
+                            type_yaffs_off_len_dict[b][0],
+                            type_yaffs_off_len_dict[b][1])
+                else
+                    wtf("unknown img type")
+
+
+if __name__ == "__main__":
+    main()
