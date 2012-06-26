@@ -2,9 +2,9 @@ import os
 import io
 import sys
 from debug_util import *
-from util import *
+from utils import *
 from const_vars import *
-from usb_generic import read_blocks, write_blocks, get_dev_block_info
+from usb_generic import read_blocks, write_blocks,write_large_buf, get_dev_block_info
 import struct
 
 
@@ -59,15 +59,15 @@ def parse_yaffs2_header(header_buf):
 
     yaffs_img_header = struct.pack('LLL', yaffs_head_id, \
             yaffs_version, yaffs_byte_per_chunk, yaffs_byte_per_spare)
-    if yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version = YAFFS_VERSION_4096:
+    if yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version == YAFFS_VERSION_4096:
         num_data_group_sector = 8
         num_spare_group_sector = 8
         # DataBuf += sizeof header
         #size -= sizeof header
-    elif  yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version = YAFFS_VERSION_2048:
+    elif  yaffs_head_id == YAFFS_MAGIC_HEAD_ID and yaffs_version == YAFFS_VERSION_2048:
         num_data_group_sector = 4
         num_spare_group_sector = 4
-    else
+    else:
         num_data_group_sector = 4
         num_spare_group_sector = 4
         err("the program should not go here, something must be wrong")
@@ -146,7 +146,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
 
 
 
-def usb_burn(sg_fd, ):
+#def usb_burn(sg_fd, ):
     
 
 

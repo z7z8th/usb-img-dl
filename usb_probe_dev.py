@@ -116,29 +116,33 @@ def get_dev_type(sg_fd, cmd_sector_base):
 
 def get_im_sg_path():
     sg_list = glob.glob('/dev/sg[1-9]*')
-    print sg_list
+    #print sg_list
     for sg_path in sg_list:
-        print "\nchecking: ", sg_path
-        with open(sg_path, 'r+b') as sg_fd:
-            lastblock, block_size = get_dev_block_info(sg_fd)
-            if block_size and block_size != SECTOR_SIZE:
-                warn("unable to handle block_size=%d, must be %d" \
-                        % (block_size, SECTOR_SIZE))
-            if not lastblock:
-                warn("*** fail to read: " + sg_fd)
-                return None    # to delete
-                continue
+        try:
+            with open(sg_path, 'r+b') as sg_fd:
+                dbg("\nchecking: ", sg_path)
+                lastblock, block_size = get_dev_block_info(sg_fd)
+                if block_size and block_size != SECTOR_SIZE:
+                    warn("unable to handle block_size=%d, must be %d" \
+                            % (block_size, SECTOR_SIZE))
+                if not lastblock:
+                    warn("*** fail to read: " + sg_fd)
+                    return None    # to delete
+                    continue
 
-            info("lastblock=%d" % lastblock)
-            cmd_sector_base = lastblock - COMMAND_AREA_SIZE
-            if check_magic_str(sg_fd, cmd_sector_base):
-                info("aha! Device Found! Good Luck!")
-                if check_board_sw_version(sg_fd, cmd_sector_base):
-                    info("ramloader version check succeed!")
-                    if change_to_dl_mode(sg_fd):
-                        info("change device to download mode succeed!")
-                        if get_dev_type(sg_fd, cmd_sector_base):
-                            return sg_path
+                info("lastblock=%d" % lastblock)
+                cmd_sector_base = lastblock - COMMAND_AREA_SIZE
+                if check_magic_str(sg_fd, cmd_sector_base):
+                    info("aha! Device Found! Good Luck!")
+                    if check_board_sw_version(sg_fd, cmd_sector_base):
+                        info("ramloader version check succeed!")
+                        if change_to_dl_mode(sg_fd):
+                            info("change device to download mode succeed!")
+                            if get_dev_type(sg_fd, cmd_sector_base):
+                                return sg_path
+        except IOError as e:
+            pass
+            #err(str(e))
         return None         # to delete
     return None
 
@@ -148,8 +152,10 @@ def wait_and_get_im_sg_path():
         sg_path = get_im_sg_path()
         if sg_path:
             return sg_path
-        time.sleep(0.3)
+        time.sleep(0.5)
         print ".",
+        sys.stdout.flush()
+        
 
 
 if __name__ == "__main__":

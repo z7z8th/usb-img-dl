@@ -5,8 +5,10 @@ from debug_util import *
 from check_bsp_pkg import *
 from usb_probe_dev import wait_and_get_im_sg_path
 from optparse import OptionParser
+from usb_burn import *
 import time
-from mmap import mmap
+import mmap
+import os
 
 type_call_dict = { 
         'b': ("barebox", 'dyn_id'),
@@ -143,6 +145,12 @@ def main():
     dbg(dump_list)
 
     sg_path = wait_and_get_im_sg_path()
+#    sg_path = "/dev/sg4"
+#    while not os.path.exists(sg_path):
+#        print ".",
+#        time.sleep(0.3)
+#    time.sleep(2)
+#    print
     with open(sg_path, 'r+b') as sg_fd:
         for d in dump_list:
             dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
@@ -155,7 +163,7 @@ def main():
         for i,b in enumerate(options.burn_list):
             info("burn "+img_paths[i]+" as type "+type_call_dict[b][0])
             with open(img_paths[i], 'rb') as img_fd:
-                img_buf = mmap(img_fd.fileno(), 0)
+                img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
                 if type_call_dict[b][1] == 'dyn_id':
                     usb_burn_dyn_id(sg_fd, img_buf, type_dyn_id_dict[b])
                 elif type_call_dict[b][1] == 'raw':
@@ -166,8 +174,9 @@ def main():
                     usb_burn_yaffs2(sg_fd, img_buf,
                             type_yaffs_off_len_dict[b][0],
                             type_yaffs_off_len_dict[b][1])
-                else
+                else:
                     wtf("unknown img type")
+                img_buf.close()
 
 
 if __name__ == "__main__":

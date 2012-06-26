@@ -222,7 +222,7 @@ dl_small_version = 0
 
 TwoStageDownload = TWO_STAGE_ZERO_OP
 
-dl_ram_version_check = FALSE
+dl_ram_version_check = False
 #  To make sure user version is ready to download 
 userModeOfDownloader = 0  #temp val, set randomly by me
 

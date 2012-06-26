@@ -87,11 +87,11 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num):
     return ret
 
 
-def write_large_buf(sg_fd, buf, sector_offset):
+def write_large_buf(sg_fd, large_buf, sector_offset):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name() + ": img_total_size=%d" % img_total_size)
     dbg(get_cur_func_name() + ": total sector num=%f" % \
-            float(img_total_size)/SECTOR_SIZE)
+            (float(img_total_size)/SECTOR_SIZE))
     size_written = 0
     while size_written < img_total_size:
         buf_end_offset = min(img_total_size, size_written + SIZE_PER_WRITE)
