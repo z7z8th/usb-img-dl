@@ -66,12 +66,13 @@ def change_to_dl_mode(sg_fd):
             USB_PROGRAMMER_DOWNLOAD_WRITE_LOADER_EXISTENCE, 1 )
     return ret
 
-def check_board_sw_version(sg_fd, cmd_sector_base):
+def check_ram_loader_version(sg_fd, cmd_sector_base):
     global blOneStageReady
     global dl_small_version
     version_sector = read_blocks( sg_fd, \
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
     if not version_sector:
+        err("read ram loader version sector failed")
         return False
     if ord(version_sector[8]) == 1:
         blOneStageReady = False
@@ -132,14 +133,27 @@ def get_im_sg_path():
 
                 info("lastblock=%d" % lastblock)
                 cmd_sector_base = lastblock - COMMAND_AREA_SIZE
-                if check_magic_str(sg_fd, cmd_sector_base):
-                    info("aha! Device Found! Good Luck!")
-                    if check_board_sw_version(sg_fd, cmd_sector_base):
-                        info("ramloader version check succeed!")
-                        if change_to_dl_mode(sg_fd):
-                            info("change device to download mode succeed!")
-                            if get_dev_type(sg_fd, cmd_sector_base):
-                                return sg_path
+                ret = check_magic_str(sg_fd, cmd_sector_base)
+                if ret: info("magic string match")
+                else:
+                    warn("magic string not match")
+                    continue
+                ret = check_ram_loader_version(sg_fd, cmd_sector_base)
+                if ret: info("ramloader version check succeed")
+                else:
+                    warn("ramloader version check failed")
+                    continue
+                ret = change_to_dl_mode(sg_fd)
+                if ret: info("change device to download mode succeed")
+                else:
+                    warn("change device to download mode failed")
+                    continue
+                ret = get_dev_type(sg_fd, cmd_sector_base)
+                if ret: info("get dev type succeed")
+                else:
+                    warn("get dev type failed")
+                    continue
+                return sg_path
         except IOError as e:
             pass
             #err(str(e))

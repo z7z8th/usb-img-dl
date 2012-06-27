@@ -42,35 +42,6 @@ type_dyn_id_dict = {
         'c' : ID_ICON,
         }
 
-# Default
-hw_new_flag = 1
-# DYN_ID Raw Data 
-hw_misc_offset = IM9828_MISC_OFFSET
-hw_misc_len = IM9828_MISC_LENGTH
-
-# Raw Data 
-hw_ps_modem_offset = PS_MODEM_OFFSET
-hw_ps_modem_len = PS_MODEM_LENGTH
-
-hw_bootimg_offset = BOOTIMG_OFFSET
-hw_bootimg_len = BOOTIMG_LENGTH
-
-hw_recovery_offset = RECOVERY_OFFSET
-hw_recovery_len = RECOVERY_LENGTH
-
-# Yaffs2 
-hw_mdata_offset = MDATA_OFFSET
-hw_mdata_len = MDATA_LENGTH
-
-hw_system_offset = SYSTEM_OFFSET
-hw_system_len = SYSTEM_LENGTH
-
-hw_udata_offset = UDATA_OFFSET
-hw_udata_len = UDATA_LENGTH
-
-hw_cache_offset = CACHE_OFFSET
-hw_cache_len = CACHE_LENGTH
-
 type_raw_off_len_dict = {
         'm' : (PS_MODEM_OFFSET, PS_MODEM_LENGTH),
         'B' : (BOOTIMG_OFFSET,  BOOTIMG_LENGTH),
@@ -87,11 +58,13 @@ type_yaffs_off_len_dict = {
 
 USAGE_MSG_HEADER = "usage: %prog <options> <args> [path/to/img...]\n" \
 "available partition/img type list are:\n"
-for type in type_call_dict.iterkeys():
+
+for type in 'bBrsmcuMidR':
     USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type][0])
+
 USAGE_MSG_HEADER += "\nif you specify more than one of dump/erase/burn,\n" \
         "dump will go first, then erase, then burn.\n"\
-        "burn will always be last action"
+        "burn will always be the last action"
 
 print USAGE_MSG_HEADER
 
@@ -107,13 +80,16 @@ def main():
             help="erase nand partitions: %metavar is a combination of partition/img" \
                  "i.e.: '-e Bsu' means to erase Boot,System,UserData of board")
     parser.add_option("-d", "--dump", type="string", dest="dump_list", \
-            metavar="PART_LIST",
+            metavar="PART_PATTERN",
             help="dump nand partitions: %metavar is a combination of partition/img" \
                  "i.e.: '-d Bsu' means to dump Boot,System,UserData to file" \
                  "the partition will dump to file with pattern: " \
                  "<PART_TYPE>.img-dumped-<TIME>")
     parser.add_option("-A", "--erase-all", action="store_true", dest="erase_all",
             help="erase the whole nand flash")
+    parser.add_option("-i", "--disk-path", type="string", dest="sg_path", 
+            help="the path to the flash disk. when use this option, "\
+                    "the device should already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
             help="say yes to all additional confirmation")
     options, args = parser.parse_args()
@@ -144,13 +120,14 @@ def main():
     dbg(erase_list)
     dbg(dump_list)
 
-    sg_path = wait_and_get_im_sg_path()
-#    sg_path = "/dev/sg4"
-#    while not os.path.exists(sg_path):
-#        print ".",
-#        time.sleep(0.3)
-#    time.sleep(2)
-#    print
+    if options.sg_path:
+        if not os.path.exists(options.sg_path):
+            wtf(options.sg_path, "does not exists")
+        else:
+            sg_path = options.sg_path
+    else:
+        sg_path = wait_and_get_im_sg_path()
+
     with open(sg_path, 'r+b') as sg_fd:
         for d in dump_list:
             dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
@@ -164,6 +141,7 @@ def main():
             info("burn "+img_paths[i]+" as type "+type_call_dict[b][0])
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+                set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
                 if type_call_dict[b][1] == 'dyn_id':
                     usb_burn_dyn_id(sg_fd, img_buf, type_dyn_id_dict[b])
                 elif type_call_dict[b][1] == 'raw':

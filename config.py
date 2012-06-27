@@ -2,7 +2,7 @@
 ## define configurable vars here
 #############################################
 
-debug = True
+debug = False
 
 
 
