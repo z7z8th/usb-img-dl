@@ -4,7 +4,7 @@
 
 from const_vars import *
 
-debug = False
+debug = True
 
 
 # 1228 Partition =

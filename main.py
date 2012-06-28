@@ -138,7 +138,7 @@ def main():
             info("erase "+type_call_dict[e][0])
 
         for i,b in enumerate(options.burn_list):
-            info("burn "+img_paths[i]+" as type "+type_call_dict[b][0])
+            info("burn "+type_call_dict[b][0]+": "+img_paths[i])
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
                 set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
@@ -154,6 +154,7 @@ def main():
                             type_yaffs_off_len_dict[b][1])
                 else:
                     wtf("unknown img type")
+                info("\n;-) burn %s succeed!" % type_call_dict[b][1])
                 img_buf.close()
 
 
