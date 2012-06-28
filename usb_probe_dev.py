@@ -2,6 +2,7 @@
 
 from const_vars import *
 from debug_util import *
+import os
 import sys
 import glob
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
@@ -120,41 +121,50 @@ def get_im_sg_path():
     #print sg_list
     for sg_path in sg_list:
         try:
-            with open(sg_path, 'r+b') as sg_fd:
-                dbg("\nchecking: ", sg_path)
-                lastblock, block_size = get_dev_block_info(sg_fd)
-                if block_size and block_size != SECTOR_SIZE:
-                    warn("unable to handle block_size=%d, must be %d" \
-                            % (block_size, SECTOR_SIZE))
-                if not lastblock:
-                    warn("*** fail to read: " + sg_fd)
-                    return None    # to delete
-                    continue
+            sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
+            assert(sg_fd > 0)
+            dbg("\nchecking: ", sg_path)
+            lastblock, block_size = get_dev_block_info(sg_fd)
+            if block_size and block_size != SECTOR_SIZE:
+                warn("unable to handle block_size=%d, must be %d" \
+                        % (block_size, SECTOR_SIZE))
+            if not lastblock:
+                warn("*** fail to read: " + sg_fd)
+                return None    # to delete
+                continue
 
-                info("lastblock=%d" % lastblock)
-                cmd_sector_base = lastblock - COMMAND_AREA_SIZE
-                ret = check_magic_str(sg_fd, cmd_sector_base)
-                if ret: info("magic string match")
-                else:
-                    warn("magic string not match")
-                    continue
-                ret = check_ram_loader_version(sg_fd, cmd_sector_base)
-                if ret: info("ramloader version check succeed")
-                else:
-                    warn("ramloader version check failed")
-                    continue
-                ret = change_to_dl_mode(sg_fd)
-                if ret: info("change device to download mode succeed")
-                else:
-                    warn("change device to download mode failed")
-                    continue
-                ret = get_dev_type(sg_fd, cmd_sector_base)
-                if ret: info("get dev type succeed")
-                else:
-                    warn("get dev type failed")
-                    continue
-                return sg_path
-        except IOError as e:
+            info("lastblock=%d" % lastblock)
+            cmd_sector_base = lastblock - COMMAND_AREA_SIZE
+            ret = check_magic_str(sg_fd, cmd_sector_base)
+            if ret: 
+                info("magic string match")
+            else:
+                warn("magic string not match")
+                continue
+
+            ret = check_ram_loader_version(sg_fd, cmd_sector_base)
+            if ret: 
+                info("ramloader version check succeed")
+            else:
+                wtf("ramloader version check failed")
+
+            ret = change_to_dl_mode(sg_fd)
+            if ret: 
+                info("change device to download mode succeed")
+            else:
+                wtf("change device to download mode failed")
+
+            ret = get_dev_type(sg_fd, cmd_sector_base)
+            if ret:
+                info("get dev type succeed")
+            else:
+                warn("get dev type failed")
+                continue
+            os.close(sg_fd)
+            return sg_path
+        except EnvironmentError as e:
+            if 'sg_fd' in vars():
+                os.close(sg_fd)
             pass
             #err(str(e))
         return None         # to delete

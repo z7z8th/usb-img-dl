@@ -5,6 +5,7 @@ from config import *
 from debug_util import *
 from utils import *
 import py_sg
+import time
 
 
 READ_CAPACITY = '\x25'
@@ -86,6 +87,8 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num):
             print "SCSIError: %s" % e
         except OSError as e:
             print "OSError: ", e
+        break
+    #time.sleep(0.020)
     return ret
 
 

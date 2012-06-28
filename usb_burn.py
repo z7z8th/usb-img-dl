@@ -7,6 +7,7 @@ from const_vars import *
 from usb_generic import read_blocks, write_blocks,write_large_buf, get_dev_block_info
 import struct
 import ctypes
+import time
 
 
 def set_dl_img_type(sg_fd, dl_img_type, start_addr_hw):
@@ -87,28 +88,31 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
             (start_addr_hw, img_len_hw))
 
     # erase nand partition
-    buf = ctypes.create_string_buffer(NULL_CHAR*SECTOR_SIZE, SECTOR_SIZE)
+    buf = ctypes.create_string_buffer(SECTOR_SIZE)
     buf[0] = '\x01'
     write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
-    buf[:] = NULL_CHAR * SECTOR_SIZE
+#    buf[:] = NULL_CHAR * SECTOR_SIZE
     buf[0:4] = int32_to_str(start_addr_hw)
     buf[4:8] = int32_to_str(img_len_hw)
     write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
+    info("start to erase yaffs")
     start_addr_erase_hw = start_addr_hw
     img_len_erase_hw = img_len_hw
-    erase_len = NAND_ERASE_MAX_LEN_PER_TIME
     while img_len_erase_hw > 0:
         buf[:] = NULL_CHAR * SECTOR_SIZE
         erase_len = min(img_len_erase_hw, NAND_ERASE_MAX_LEN_PER_TIME)
-        buf[0:4] = int32_to_str(start_addr_hw)
+        buf[0:4] = int32_to_str(start_addr_erase_hw)
         buf[4:8] = int32_to_str(erase_len)
         write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
         start_addr_erase_hw += erase_len
-        img_len_erase_hw -= erase_len
+        img_len_erase_hw    -= erase_len
+        print '.',
+        sys.stdout.flush()
     #endof erase nand partition
-
+    #exit(0)
+    print
     # write yaffs
     info("start to write yaffs")
     sector_offset = start_addr_hw / SECTOR_SIZE
@@ -118,9 +122,9 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
     size_written, size_per_page, size_per_spare = \
             parse_yaffs2_header(img_buf[:SIZE_YAFFS2_HEADER])
     num_cnt_to_bb_per_time = SIZE_PER_WRITE/ size_per_page
-    dbg("size_written=%d, size_per_page=%d, size_per_spare=%d" % 
+    dbg("size_written=0x%.4x, size_per_page=%.4x, size_per_spare=%.4x" %
             (size_written, size_per_page, size_per_spare))
-    dbg( "num_cnt_to_bb_per_time=%d" % num_cnt_to_bb_per_time)
+    dbg( "num_cnt_to_bb_per_time=", num_cnt_to_bb_per_time)
     size_per_group = size_per_page + size_per_spare
     size_page_per_nand_write = size_per_page*num_cnt_to_bb_per_time
     size_spare_per_nand_write = size_per_spare*num_cnt_to_bb_per_time
@@ -133,28 +137,47 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
         spare_buf[:] = NULL_CHAR * size_spare_per_nand_write
         size_to_write = min(img_total_size - size_written, size_per_nand_write)
         group_cnt = size_to_write/size_per_group
+#        dbg(get_cur_func_name() + \
+#                "(): size_written=%.8x, size_to_write=%.8x, group_cnt=%.2x" % \
+#                (size_written, size_to_write, group_cnt))
+
         # create buf
         for i in range(group_cnt):
             img_buf_page_start  = size_written + i*size_per_group
-            img_buf_page_end    = min(img_buf_page_start + size_per_page, img_total_size)
+            img_buf_page_end    = img_buf_page_start + size_per_page
             img_buf_spare_start = img_buf_page_end
-            img_buf_spare_end   = min(img_buf_spare_start + size_per_spare, img_total_size)
-            page_size_this = img_buf_page_end - img_buf_page_start
-            spare_size_this = img_buf_spare_end - img_buf_spare_start
+            img_buf_spare_end   = img_buf_spare_start + size_per_spare
             page_buf_start = i*size_per_page
             spare_buf_start = i*size_per_spare
-            page_buf[page_buf_start:page_buf_start+page_size_this] =\
+            page_buf[page_buf_start:page_buf_start+size_per_page] =\
                     img_buf[img_buf_page_start:img_buf_page_end]
-            spare_buf[spare_buf_start:spare_buf_start+spare_size_this] =\
+            if page_buf[page_buf_start:page_buf_start+size_per_page] !=\
+                    img_buf[img_buf_page_start:img_buf_page_end]:
+                wtf("why????")
+            spare_buf[spare_buf_start:spare_buf_start+size_per_spare] =\
                     img_buf[img_buf_spare_start:img_buf_spare_end]
+            if spare_buf[spare_buf_start:spare_buf_start+size_per_spare] !=\
+                    img_buf[img_buf_spare_start:img_buf_spare_end]:
+                wtf("why????????????")
         # do write to disk
         print ".",
+#        dbg("group_cnt=", group_cnt)
         sys.stdout.flush()
-        write_blocks(sg_fd, spare_buf.raw, USB_PROGRAMMER_WR_NAND_SPARE_DATA, 
+#        dbg("write spare_buf")
+        write_blocks(sg_fd, spare_buf.raw, USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_write/SECTOR_SIZE)
-        write_blocks(sg_fd, page_buf.raw, sector_offset, SECTOR_NUM_PER_WRITE)
+        #time.sleep(0.010)
+#        dbg("write page_buf")
+        write_blocks(sg_fd, page_buf.raw, sector_offset, 
+                (group_cnt * size_per_page) / SECTOR_SIZE)
+        #time.sleep(0.020)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
+    print
+    dbg("write yaffs to nand finished")
+    buf[:] = NULL_CHAR * SECTOR_SIZE
+    buf[0] = chr(0x00)
+    write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
         
 
 

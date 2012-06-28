@@ -128,34 +128,39 @@ def main():
     else:
         sg_path = wait_and_get_im_sg_path()
 
-    with open(sg_path, 'r+b') as sg_fd:
-        for d in dump_list:
-            dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
-                    time.strftime("%Y%m%d_%H%M%S", time.localtime())
-            info("dump "+type_call_dict[d][0]+" -> "+dumped_path)
+    time.sleep(0.5)
 
-        for e in erase_list:
-            info("erase "+type_call_dict[e][0])
+    sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
+    assert(sg_fd > 0)
+    for d in dump_list:
+        dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
+                time.strftime("%Y%m%d_%H%M%S", time.localtime())
+        info("dump "+type_call_dict[d][0]+" -> "+dumped_path)
 
-        for i,b in enumerate(options.burn_list):
-            info("burn "+type_call_dict[b][0]+": "+img_paths[i])
-            with open(img_paths[i], 'rb') as img_fd:
-                img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-                set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
-                if type_call_dict[b][1] == 'dyn_id':
-                    usb_burn_dyn_id(sg_fd, img_buf, type_dyn_id_dict[b])
-                elif type_call_dict[b][1] == 'raw':
-                    usb_burn_raw(sg_fd, img_buf, 
-                            type_raw_off_len_dict[b][0], 
-                            type_raw_off_len_dict[b][1])
-                elif type_call_dict[b][1] == 'yaffs':
-                    usb_burn_yaffs2(sg_fd, img_buf,
-                            type_yaffs_off_len_dict[b][0],
-                            type_yaffs_off_len_dict[b][1])
-                else:
-                    wtf("unknown img type")
-                info("\n;-) burn %s succeed!" % type_call_dict[b][1])
-                img_buf.close()
+    for e in erase_list:
+        info("erase "+type_call_dict[e][0])
+
+    for i,b in enumerate(options.burn_list):
+        info("burn "+type_call_dict[b][0]+": "+img_paths[i])
+        with open(img_paths[i], 'rb') as img_fd:
+            img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+            set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+            time.sleep(0.5)
+            if type_call_dict[b][1] == 'dyn_id':
+                usb_burn_dyn_id(sg_fd, img_buf, type_dyn_id_dict[b])
+            elif type_call_dict[b][1] == 'raw':
+                usb_burn_raw(sg_fd, img_buf, 
+                        type_raw_off_len_dict[b][0], 
+                        type_raw_off_len_dict[b][1])
+            elif type_call_dict[b][1] == 'yaffs':
+                usb_burn_yaffs2(sg_fd, img_buf,
+                        type_yaffs_off_len_dict[b][0],
+                        type_yaffs_off_len_dict[b][1])
+            else:
+                wtf("unknown img type")
+            info("\n;-) burn %s succeed!" % type_call_dict[b][1])
+            img_buf.close()
+    os.close(sg_fd)
 
 
 if __name__ == "__main__":
