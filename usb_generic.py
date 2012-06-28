@@ -102,7 +102,7 @@ def write_large_buf(sg_fd, large_buf, sector_offset):
         buf = large_buf[size_written : buf_end_offset]
         buf_len = buf_end_offset - size_written
         if buf_len < SIZE_PER_WRITE:
-            align_len = int((buf_len+SECTOR_SIZE-1)/SECTOR_SIZE)*SECTOR_SIZE
+            align_len = ((buf_len+SECTOR_SIZE-1)/SECTOR_SIZE)*SECTOR_SIZE
             buf += NULL_CHAR * (align_len-buf_len)
         write_blocks(sg_fd, buf, sector_offset, sector_num_write)
         size_written += SIZE_PER_WRITE

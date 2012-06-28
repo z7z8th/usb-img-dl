@@ -31,6 +31,7 @@ def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     buf = int32_to_str(dyn_id_init_offset)
     buf += int32_to_str(dyn_id_init_len)
     buf += NULL_CHAR * 2
+    buf += chr(0x98)
     buf += chr(platform_id)
     buf += chr(dyn_id+1)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
@@ -126,13 +127,13 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
         page_buf[:] = NULL_CHAR * size_page_per_write
         spare_buf[:] = NULL_CHAR * size_spare_per_write
         size_to_write = min(img_total_size - size_written, size_per_nand_write)
-        group_cnt = int((size_to_write+size_per_group-1)/size_per_group)
+        group_cnt = size_to_write/size_per_group
         dbg(get_cur_func_name() + \
                 "(): size_written=%d, size_to_write=%d, group_cnt=%d" % \
                 (size_written, size_to_write, group_cnt))
         # create buf
         for i in range(group_cnt):
-            dbg("group idx=", i)
+            #dbg("group idx=", i)
             img_buf_page_start  = size_written + i*size_per_group
             img_buf_page_end    = min(img_buf_page_start + size_per_page, img_total_size)
             img_buf_spare_start = img_buf_page_end
@@ -141,16 +142,17 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
             spare_size_this = img_buf_spare_end - img_buf_spare_start
             page_buf_start = i*size_per_page
             spare_buf_start = i*size_per_spare
-            dbg("page_size_this=%d, spare_size_this=%d" % (page_size_this, spare_size_this))
+            #dbg("page_size_this=%d, spare_size_this=%d" % (page_size_this, spare_size_this))
             page_buf[page_buf_start:page_buf_start+page_size_this] =\
                     img_buf[img_buf_page_start:img_buf_page_end]
             spare_buf[spare_buf_start:spare_buf_start+spare_size_this] =\
                     img_buf[img_buf_spare_start:img_buf_spare_end]
         # do write to disk
-        dbg("sector_offset=", sector_offset)
-        dbg("write spare")
+        #dbg("sector_offset=", sector_offset)
+        #dbg("write spare")
+        print ".",
         write_blocks(sg_fd, spare_buf, USB_PROGRAMMER_WR_NAND_SPARE_DATA, size_spare_per_write/SECTOR_SIZE)
-        dbg("write page")
+        #dbg("write page")
         write_blocks(sg_fd, page_buf, sector_offset, SECTOR_NUM_PER_WRITE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
@@ -159,7 +161,6 @@ def usb_burn_yaffs2(sg_fd, img_buf, start_addr_hw, img_len_hw):
 
 #def usb_burn(sg_fd, ):
     
-
 
 if __name__ == "__main__":
     set_dl_img_type("/dev/sg2", 48, 0)
