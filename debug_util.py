@@ -1,27 +1,30 @@
 import io, os
 import inspect
 #import logging
-from termcolor import colored
+from colored_print import *
 
-def dbg(msg):
-    print colored(msg, 'magenta')
+from config import *
 
-
-def info(msg):
-    print colored(msg, 'green')
-
-
-def warn(msg):
-    print colored(msg, 'magenta', attrs = ['bold'])
+def dbg(*msg):
+    if(debug):
+        colored_print('blue',None, None, *msg)
 
 
-def err(msg):
-    print colored(msg, 'red', attrs = ['bold'])
+def info(*msg):
+    colored_print('green',None, None, *msg)
 
 
-def wtf(msg):
-    print colored(msg, 'red', attrs = ['bold'])
-    print colored('exit...', 'red', attrs = ['bold'])
+def warn(*msg):
+    colored_print('magenta',None, ['bold'], *msg)
+
+
+def err(*msg):
+    colored_print('red',None, ['bold'], *msg)
+
+
+def wtf(*msg):
+    colored_print('red',None, ['bold'], *msg)
+    colored_print('red',None, ['bold'], "exit....")
     exit(1)
 
 def print_str_hex(str):

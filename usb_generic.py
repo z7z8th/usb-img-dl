@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 from const_vars import *
+from config import *
 from debug_util import *
 from utils import *
 import py_sg
+import time
 
 
 READ_CAPACITY = '\x25'
@@ -76,27 +78,35 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num):
 #    print_str_hex(cmd)
 
     ret = False
-    try:
-        response = py_sg.write(sg_fd, cmd, buf, 2000 )
-        ret = True
-    except py_sg.SCSIError as e:
-        print "SCSIError: %s" % e
-    except OSError as e:
-        print "OSError: ", e
+    while True:
+        try:
+            response = py_sg.write(sg_fd, cmd, buf, 2000 )
+            ret = True
+            break
+        except py_sg.SCSIError as e:
+            print "SCSIError: %s" % e
+        except OSError as e:
+            print "OSError: ", e
+        break
+    #time.sleep(0.020)
     return ret
 
 
-def write_large_buf(sg_fd, buf, sector_offset):
+def write_large_buf(sg_fd, large_buf, sector_offset):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name() + ": img_total_size=%d" % img_total_size)
     dbg(get_cur_func_name() + ": total sector num=%f" % \
-            float(img_total_size)/SECTOR_SIZE)
+            (float(img_total_size)/SECTOR_SIZE))
     size_written = 0
     while size_written < img_total_size:
         buf_end_offset = min(img_total_size, size_written + SIZE_PER_WRITE)
         sector_num_write = (buf_end_offset - size_written + \
                 SECTOR_SIZE - 1)/SECTOR_SIZE
         buf = large_buf[size_written : buf_end_offset]
+        buf_len = buf_end_offset - size_written
+        if buf_len < SIZE_PER_WRITE:
+            align_len = ((buf_len+SECTOR_SIZE-1)/SECTOR_SIZE)*SECTOR_SIZE
+            buf += NULL_CHAR * (align_len-buf_len)
         write_blocks(sg_fd, buf, sector_offset, sector_num_write)
         size_written += SIZE_PER_WRITE
         sector_offset += sector_num_write

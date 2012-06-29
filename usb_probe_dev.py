@@ -2,9 +2,11 @@
 
 from const_vars import *
 from debug_util import *
+import os
 import sys
 import glob
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
+import time
 
 COMMAND_AREA_SIZE = 0X100
 USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET = 0x04
@@ -27,9 +29,9 @@ dl_small_version = svn_revision
 blOneStageReady = False
 dl_small_version = False
 
-def check_magic_str(disk_fd, cmd_sector_base):
+def check_magic_str(sg_fd, cmd_sector_base):
     #read magic hex, should be 0xdeadbeef
-    magic_block = read_blocks(disk_fd, \
+    magic_block = read_blocks(sg_fd, \
             cmd_sector_base + USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET, 1)
     if not magic_block:
         warn("*** read magic block failed")
@@ -47,7 +49,7 @@ def check_magic_str(disk_fd, cmd_sector_base):
         return False
     return True
 
-def change_to_dl_mode(disk_fd):
+def change_to_dl_mode(sg_fd):
     global dl_major_version
     global dl_minor_version
     global dl_small_version
@@ -61,16 +63,17 @@ def change_to_dl_mode(disk_fd):
     fill_sector += chr(dl_small_version / 10)
     fill_sector += chr(dl_small_version % 10)
     fill_sector += NULL_CHAR * (512 - len(fill_sector))
-    ret = write_blocks(disk_fd, fill_sector, \
+    ret = write_blocks(sg_fd, fill_sector, \
             USB_PROGRAMMER_DOWNLOAD_WRITE_LOADER_EXISTENCE, 1 )
     return ret
 
-def check_board_sw_version(disk_fd, cmd_sector_base):
+def check_ram_loader_version(sg_fd, cmd_sector_base):
     global blOneStageReady
     global dl_small_version
-    version_sector = read_blocks( disk_fd, \
+    version_sector = read_blocks( sg_fd, \
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
     if not version_sector:
+        err("read ram loader version sector failed")
         return False
     if ord(version_sector[8]) == 1:
         blOneStageReady = False
@@ -92,14 +95,14 @@ def check_board_sw_version(disk_fd, cmd_sector_base):
             return True
         else:
             dl_ram_version_check = False
-            disk_fd.close()
+            sg_fd.close()
             wtf("need ramloader small version >= 6")
             return False
     return False
 
 
-def get_dev_type(disk_fd, cmd_sector_base):
-    dev_type_sector = read_blocks(disk_fd, \
+def get_dev_type(sg_fd, cmd_sector_base):
+    dev_type_sector = read_blocks(sg_fd, \
             cmd_sector_base + USB_PROGRAMMER_GET_DEV_TYPE_OFFSET, 1)
     if ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NAND:
         ucDevType = FLASH_DEV_TYPE_IS_NAND
@@ -113,45 +116,71 @@ def get_dev_type(disk_fd, cmd_sector_base):
 
 
 
-def get_im_disk_path():
-    disk_list = glob.glob('/dev/sg[1-9]*')
-    print disk_list
-    for disk_path in disk_list:
-        print "\nchecking: ", disk_path
-        disk_fd = open(disk_path, 'r+b')
-        lastblock, block_size = get_dev_block_info(disk_fd)
-        if block_size and block_size != SECTOR_SIZE:
-            warn("unable to handle block_size=%d, must be %d" \
-                    % (block_size, SECTOR_SIZE))
-        if not lastblock:
-            warn("*** fail to read: " + disk_fd)
-            disk_fd.close()
-            return None
-            continue
+def get_im_sg_path():
+    sg_list = glob.glob('/dev/sg[1-9]*')
+    #print sg_list
+    for sg_path in sg_list:
+        try:
+            sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
+            assert(sg_fd > 0)
+            dbg("\nchecking: ", sg_path)
+            lastblock, block_size = get_dev_block_info(sg_fd)
+            if block_size and block_size != SECTOR_SIZE:
+                warn("unable to handle block_size=%d, must be %d" \
+                        % (block_size, SECTOR_SIZE))
+            if not lastblock:
+                warn("*** fail to read: " + sg_fd)
+                return None    # to delete
+                continue
 
-        info("lastblock=%d" % lastblock)
-        cmd_sector_base = lastblock - COMMAND_AREA_SIZE
-        if check_magic_str(disk_fd, cmd_sector_base):
-            info("aha! Device Found! Good Luck!")
-            if check_board_sw_version(disk_fd, cmd_sector_base):
-                info("ramloader version check succeed!")
-                if change_to_dl_mode(disk_fd):
-                    info("change device to download mode succeed!")
-                    if get_dev_type(disk_fd, cmd_sector_base):
-                        disk_fd.close()
-                        return disk_fd
-        return None
-    disk_fd.close()
+            info("lastblock=%d" % lastblock)
+            cmd_sector_base = lastblock - COMMAND_AREA_SIZE
+            ret = check_magic_str(sg_fd, cmd_sector_base)
+            if ret: 
+                info("magic string match")
+            else:
+                warn("magic string not match")
+                continue
+
+            ret = check_ram_loader_version(sg_fd, cmd_sector_base)
+            if ret: 
+                info("ramloader version check succeed")
+            else:
+                wtf("ramloader version check failed")
+
+            ret = change_to_dl_mode(sg_fd)
+            if ret: 
+                info("change device to download mode succeed")
+            else:
+                wtf("change device to download mode failed")
+
+            ret = get_dev_type(sg_fd, cmd_sector_base)
+            if ret:
+                info("get dev type succeed")
+            else:
+                warn("get dev type failed")
+                continue
+            os.close(sg_fd)
+            return sg_path
+        except EnvironmentError as e:
+            if 'sg_fd' in vars():
+                os.close(sg_fd)
+            pass
+            #err(str(e))
+        return None         # to delete
     return None
+
+def wait_and_get_im_sg_path():
+    info("waiting for device to appear")
+    while True:
+        sg_path = get_im_sg_path()
+        if sg_path:
+            return sg_path
+        time.sleep(0.5)
+        print ".",
+        sys.stdout.flush()
+        
 
 
 if __name__ == "__main__":
-    import time
-    while True:
-        ret = get_im_disk_path()
-        if ret:
-            print ret
-            exit(0)
-        time.sleep(0.5)
-        print ".",
-
+    wait_and_get_im_sg_path()
