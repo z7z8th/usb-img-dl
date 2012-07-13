@@ -27,6 +27,9 @@ def wtf(*msg):
     colored_print('red',None, ['bold'], "exit....")
     exit(1)
 
+def assert_number(n):
+    assert(isinstance(n, int) or isinstance(n, long))
+
 def print_str_hex(str):
     for x in str:
         print "0x%02x" % ord(x),

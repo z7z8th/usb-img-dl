@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+import time
+import mmap
+import os
 
 from const_vars import *
 from debug_util import *
@@ -6,9 +9,7 @@ from check_bsp_pkg import *
 from usb_probe_dev import wait_and_get_im_sg_path
 from optparse import OptionParser
 from usb_burn import *
-import time
-import mmap
-import os
+from usb_misc import *
 
 type_call_dict = { 
         'b': ("barebox", 'dyn_id'),
@@ -17,7 +18,7 @@ type_call_dict = {
         's': ('system', 'yaffs'),
         'm': ('modem-or-ecos', 'raw'),
         'c': ('charging-icon', 'dyn_id'),
-        'u': ('user-data', 'yaffs'),
+        'u': ('userdata', 'yaffs'),
         'M': ('machine-data', 'yaffs'),
         'i': ('IMEI-data', 'dyn_id'),
         'd': ('barebox-data', 'dyn_id'),
@@ -66,10 +67,10 @@ USAGE_MSG_HEADER += "\nif you specify more than one of dump/erase/burn,\n" \
         "dump will go first, then erase, then burn.\n"\
         "burn will always be the last action"
 
-print USAGE_MSG_HEADER
+#print USAGE_MSG_HEADER
 
 
-def main():
+def parse_options():
     parser = OptionParser(USAGE_MSG_HEADER)
     parser.add_option("-b", "--burn", type="string", dest="burn_list", \
             metavar="IMG_PATTERN",
@@ -92,7 +93,11 @@ def main():
                     "the device should already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
             help="say yes to all additional confirmation")
-    options, args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    options, args = parse_options()
     img_paths = args
     dbg(options)
     dbg(args)
@@ -105,7 +110,7 @@ def main():
             wtf("%s contains invalid partition/img types: %s" 
                     % (str(list(s)), str(list(s - type_call_keys))))
 
-    if len(options.burn_list) != len(burn_list):
+    if options.burn_list and len(options.burn_list) != len(burn_list):
         wtf("you have specified duplicated value for --burn")
     if options.burn_list and len(options.burn_list) != len(args):
         wtf("you ask to burn %d imgs, but %d path/to/imgs specified." \
@@ -139,9 +144,26 @@ def main():
 
     for e in erase_list:
         info("erase "+type_call_dict[e][0])
+        if type_call_dict[e][1] == 'dyn_id':
+            usb_erase_dyn_id(sg_fd, type_dyn_id_dict[e])
+        elif type_call_dict[e][1] == 'raw':
+            usb_erase_raw(sg_fd, 
+                    type_raw_off_len_dict[e][0], 
+                    type_raw_off_len_dict[e][1])
+        elif type_call_dict[e][1] == 'yaffs':
+            usb_erase_yaffs(sg_fd,
+                    type_yaffs_off_len_dict[e][0],
+                    type_yaffs_off_len_dict[e][1])
+        else:
+            wtf("unknown img type")
+        info("\n;-) erase %s succeed!" % type_call_dict[e][1])
 
+
+    usb2_start(sg_fd)
     for i,b in enumerate(options.burn_list):
         info("burn "+type_call_dict[b][0]+": "+img_paths[i])
+        if not os.path.basename(img_paths[i]).startswith(type_call_dict[b][0]):
+            wtf("img file pattern not match, you maybe burning the wrong img")
         with open(img_paths[i], 'rb') as img_fd:
             img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
             set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
@@ -160,6 +182,7 @@ def main():
                 wtf("unknown img type")
             info("\n;-) burn %s succeed!" % type_call_dict[b][1])
             img_buf.close()
+    usb2_end(sg_fd)
     os.close(sg_fd)
 
 

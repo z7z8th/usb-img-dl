@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+from __future__ import print_function
 from const_vars import *
 from debug_util import *
 import os
@@ -9,9 +9,6 @@ from usb_generic import read_blocks, write_blocks, get_dev_block_info
 import time
 
 COMMAND_AREA_SIZE = 0X100
-USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET = 0x04
-USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET = 0x06
-USB_PROGRAMMER_GET_DEV_TYPE_OFFSET = 0x07
 
 #Send Download mode to board's RAM loader
 USB_PROGRAMMER_DOWNLOAD_WRITE_LOADER_EXISTENCE = 0x50000210
@@ -177,7 +174,7 @@ def wait_and_get_im_sg_path():
         if sg_path:
             return sg_path
         time.sleep(0.5)
-        print ".",
+        print('.', sep='', end='')
         sys.stdout.flush()
         
 

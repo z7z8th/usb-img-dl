@@ -15,20 +15,21 @@ USB_PROGRAMMER_GET_IMG_ADDR_BY_ID = 0x00000011
 USB_PROGRAMMER_GET_NAND_SPARE_DATA = 0x00000012
 
 # Option for 'USB_PROGRAMMER_SET_BOOT_DEVICE' command 
-# download second boot loader to RAM
-DOWNLOAD_TYPE_RAM   = 2
 # download code to flash directory
 DOWNLOAD_TYPE_FLASH = 1
+# download second boot loader to RAM
+DOWNLOAD_TYPE_RAM   = 2
+
 FLASH_BASE_ADDR                 = 0x10000000
 IM9828_RAM_BOOT_BASE_ADDR       = 0x1FFE0000
 RAM_BOOT_BASE_ADDR              = IM9828_RAM_BOOT_BASE_ADDR
 
 
 ##### usb write
-USB_PROGRAMMER_SET_PROG_MODE_CMD = 0x50000100
+##USB_PROGRAMMER_SET_PROG_MODE_CMD = 0x50000100
 
 # 0015, command to tell BB which address is going to be programmed.
-USB_PROGRAMMER_SET_PROG_ADDR_CMD = 0x50000104
+##USB_PROGRAMMER_SET_PROG_ADDR_CMD = 0x50000104
 # Command to tell Magic that the image boot from RAM or FLASH
 USB_PROGRAMMER_SET_BOOT_DEVICE = 0x50000200
 # Command to tell Magic that the image boot from which address
@@ -49,6 +50,7 @@ USB_PROGRAMMER_WR_NAND_SPARE_DATA = 0x50000302
 # and data length in the partition through this command
 USB_PROGRAMMER_SET_NAND_PARTITION_INFO = 0x50000303
 
+USB_PROGRAMMER_WR_BB_REG         = 0x50000400
 USB_PROGRAMMER_FINISH_MAGIC_WORD = 0x5a5a5a5a
 
 # WmDropFiles
