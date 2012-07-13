@@ -8,6 +8,7 @@ import ctypes
 from debug_util import *
 from utils import *
 from const_vars import *
+from bsp_part_alloc import *
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
 
 
@@ -35,7 +36,7 @@ def usb_erase_raw(sg_fd, nand_part_start_addr, nand_part_size):
     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
     write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
 
-def usb_erase_yaffs(sg_fd, nand_part_start_addr, nand_part_size):
+def usb_erase_yaffs2(sg_fd, nand_part_start_addr, nand_part_size):
     buf = ctypes.create_string_buffer(SECTOR_SIZE)
     buf[0] = '\x01'
     write_blocks(sg_fd, buf.raw, \
@@ -46,7 +47,7 @@ def usb_erase_yaffs(sg_fd, nand_part_start_addr, nand_part_size):
     buf[4:8] = int32_to_str(nand_part_size)
     write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
-    info("start to erase yaffs")
+    info("start to erase yaffs2")
     nand_start_erase_addr = nand_part_start_addr
     nand_erase_size = nand_part_size
     while nand_erase_size > 0:

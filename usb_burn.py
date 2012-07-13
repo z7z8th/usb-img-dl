@@ -9,6 +9,7 @@ import time
 from debug_util import *
 from utils import *
 from const_vars import *
+from bsp_part_alloc import *
 from usb_generic import read_blocks, write_blocks,write_large_buf, get_dev_block_info
 from usb_erase import *
 
@@ -30,33 +31,33 @@ def usb_burn_raw(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
 
 def parse_yaffs2_header(header_buf):
     header_size = 0
-    yaffs_head_id = str_to_int32_le(header_buf[0:4])
-    yaffs_version = str_to_int32_le(header_buf[4:8])
-    yaffs_byte_per_chunk = str_to_int32_le(header_buf[8:12])
-    yaffs_byte_nand_spare = str_to_int32_le(header_buf[12:16])
+    yaffs2_head_id = str_to_int32_le(header_buf[0:4])
+    yaffs2_version = str_to_int32_le(header_buf[4:8])
+    yaffs2_byte_per_chunk = str_to_int32_le(header_buf[8:12])
+    yaffs2_byte_nand_spare = str_to_int32_le(header_buf[12:16])
 
-    info("yaffs_image_header: head_id=%d, version=%d, "\
+    info("yaffs2_image_header: head_id=%d, version=%d, "\
             "chunk_size=%d, spare_size=%d" % \
-            (yaffs_head_id, yaffs_version, yaffs_byte_per_chunk,
-                yaffs_byte_nand_spare))
+            (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
+                yaffs2_byte_nand_spare))
     header_struct_fmt = 'LLLL'
-    yaffs_img_header = struct.pack(header_struct_fmt, yaffs_head_id, \
-            yaffs_version, yaffs_byte_per_chunk, yaffs_byte_nand_spare)
-    if yaffs_head_id == YAFFS_MAGIC_HEAD_ID and \
-                yaffs_version == YAFFS_VERSION_4096:
-        size_nand_page = YAFFS_CHUNKSIZE_4K
-        size_nand_spare = YAFFS_SPARESIZE_4K
+    yaffs2_img_header = struct.pack(header_struct_fmt, yaffs2_head_id, \
+            yaffs2_version, yaffs2_byte_per_chunk, yaffs2_byte_nand_spare)
+    if yaffs2_head_id == YAFFS2_MAGIC_HEAD_ID and \
+                yaffs2_version == YAFFS2_VERSION_4096:
+        size_nand_page = YAFFS2_CHUNKSIZE_4K
+        size_nand_spare = YAFFS2_SPARESIZE_4K
         header_size = struct.calcsize(header_struct_fmt)
-    elif  yaffs_head_id == YAFFS_MAGIC_HEAD_ID and \
-                yaffs_version == YAFFS_VERSION_2048:
-        size_nand_page = YAFFS_CHUNKSIZE_2K
-        size_nand_spare = YAFFS_SPARESIZE_2K
+    elif  yaffs2_head_id == YAFFS2_MAGIC_HEAD_ID and \
+                yaffs2_version == YAFFS2_VERSION_2048:
+        size_nand_page = YAFFS2_CHUNKSIZE_2K
+        size_nand_spare = YAFFS2_SPARESIZE_2K
         header_size = struct.calcsize(header_struct_fmt)
     else:
-        dbg("yaffs version is none")
+        dbg("yaffs2 version is none")
         # im9828 v1/v3 uses 2KB size page and 64B size spare
-        size_nand_page = YAFFS_CHUNKSIZE_2K
-        size_nand_spare = YAFFS_SPARESIZE_2K
+        size_nand_page = YAFFS2_CHUNKSIZE_2K
+        size_nand_spare = YAFFS2_SPARESIZE_2K
 
     return (header_size, size_nand_page, size_nand_spare)
 
@@ -74,10 +75,10 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     dbg("img_total_size=", img_total_size)
 
     # erase nand partition
-    usb_erase_yaffs(sg_fd, nand_part_start_addr, nand_part_size)
+    usb_erase_yaffs2(sg_fd, nand_part_start_addr, nand_part_size)
 
-    # write yaffs
-    info("start to write yaffs")
+    # write yaffs2
+    info("start to write yaffs2")
 
     size_written, size_nand_page, size_nand_spare = \
             parse_yaffs2_header(img_buf[:SIZE_YAFFS2_HEADER])
@@ -131,7 +132,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
         sector_offset += SECTOR_NUM_PER_WRITE
 
     print()
-    dbg("write yaffs to nand finished")
+    dbg("write yaffs2 to nand finished")
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)
     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)

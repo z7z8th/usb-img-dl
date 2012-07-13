@@ -4,7 +4,9 @@ from const_vars import *
 from config import *
 from debug_util import *
 from utils import *
-import py_sg
+from py_sg import write as sg_write
+from py_sg import read as sg_read
+from py_sg import SCSIError
 import time
 
 
@@ -14,8 +16,8 @@ def get_dev_block_info(sg_fd):
     print_str_hex(cmd)
     buf = [0,0,0,0, 0,0,0,0]
     try:
-        response = py_sg.read(sg_fd, cmd, 8, 2000)
-    except py_sg.SCSIError as e:
+        response = sg_read(sg_fd, cmd, 8, 2000)
+    except SCSIError as e:
         print "SCSIError: ", e
         sg_fd.close()
         return (None, None)
@@ -40,10 +42,7 @@ READ_10='\x28'
 def read_blocks(sg_fd, sector_offset, sector_num):
     print "read_blocks"
     cmd = READ_10 + NULL_CHAR
-    cmd += chr((sector_offset>>24) & 0xFFl)
-    cmd += chr((sector_offset>>16) & 0xFFl)
-    cmd += chr((sector_offset>>8) & 0xFFl)
-    cmd += chr(sector_offset & 0xFFl)
+    cmd += int32_to_str(sector_offset)
     cmd += NULL_CHAR
     cmd += chr((sector_num>>8) & 0xFFl)
     cmd += chr(sector_num & 0xFFl)
@@ -52,8 +51,8 @@ def read_blocks(sg_fd, sector_offset, sector_num):
     print_str_hex(cmd)
 
     try:
-        response = py_sg.read(sg_fd, cmd, sector_num * SECTOR_SIZE, 2000 )
-    except py_sg.SCSIError as e:
+        response = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 2000 )
+    except SCSIError as e:
         print "SCSIError: ", e
         sg_fd.close()
         return None
@@ -66,29 +65,20 @@ WRITE_10='\x2a'
 def write_blocks(sg_fd, buf, sector_offset, sector_num):
 #    print "write_blocks"
     cmd = WRITE_10 + NULL_CHAR
-    cmd += chr((sector_offset>>24) & 0xFFl)
-    cmd += chr((sector_offset>>16) & 0xFFl)
-    cmd += chr((sector_offset>>8) & 0xFFl)
-    cmd += chr(sector_offset & 0xFFl)
+    cmd += int32_to_str(sector_offset)
     cmd += NULL_CHAR
-    cmd += chr((sector_num>>8) & 0xFFl)
-    cmd += chr(sector_num & 0xFFl)
+    cmd += chr((sector_num>>8) & 0xFF)
+    cmd += chr(sector_num & 0xFF)
     cmd += NULL_CHAR
-#    print "cmd=",
-#    print_str_hex(cmd)
 
     ret = False
-    while True:
-        try:
-            response = py_sg.write(sg_fd, cmd, buf, 2000 )
-            ret = True
-            break
-        except py_sg.SCSIError as e:
-            print "SCSIError: %s" % e
-        except OSError as e:
-            print "OSError: ", e
-        break
-    #time.sleep(0.020)
+    try:
+        response = sg_write(sg_fd, cmd, buf, 2000 )
+        ret = True
+    except SCSIError as e:
+        print "SCSIError: %s" % e
+    except OSError as e:
+        print "OSError: ", e
     return ret
 
 
