@@ -19,7 +19,6 @@ def get_dev_block_info(sg_fd):
         response = sg_read(sg_fd, cmd, 8, 2000)
     except SCSIError as e:
         print "SCSIError: ", e
-        sg_fd.close()
         return (None, None)
 
     rd_cap_buff = [ord(one_char) for one_char in response]
@@ -54,7 +53,6 @@ def read_blocks(sg_fd, sector_offset, sector_num):
         response = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 2000 )
     except SCSIError as e:
         print "SCSIError: ", e
-        sg_fd.close()
         return None
     #read_buf = [ord(one_char) for one_char in response]
     read_buf = response

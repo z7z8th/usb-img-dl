@@ -176,7 +176,7 @@ def wait_and_get_im_sg_path():
         time.sleep(0.5)
         print('.', sep='', end='')
         sys.stdout.flush()
-        
+
 
 
 if __name__ == "__main__":
