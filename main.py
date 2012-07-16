@@ -4,9 +4,11 @@ import mmap
 import os
 
 from const_vars import *
+from runtime_global_vars import *
+import config
 from debug_util import *
 from check_bsp_pkg import *
-from usb_probe_dev import wait_and_get_im_sg_path
+from usb_probe_dev import wait_and_get_im_sg_fd
 from optparse import OptionParser
 from usb_burn import *
 from usb_misc import *
@@ -69,14 +71,19 @@ def parse_options():
                     "the device should already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
             help="say yes to all additional confirmation")
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
+            help="output verbose information for debug")
     return parser.parse_args()
 
 
 def main():
     options, args = parse_options()
     img_paths = args
-    dbg(options)
-    dbg(args)
+    dbg("options: ", options)
+    dbg("args: ", args)
+
+    config.debug = True if options.verbose else False
+
     if options.bsp12_alloc and options.bsp13_alloc:
         wtf("only one type of alloc can be specified")
     if options.bsp12_alloc:
@@ -86,7 +93,8 @@ def main():
     else:
         info("use default alloc: bsp13")
         use_bsp13_allocation()
-    print_allocation()
+    #print_allocation()
+
     type_call_keys = set(type_call_dict.keys())
     burn_list  = set(options.burn_list)  if options.burn_list  else set()
     erase_list = set(options.erase_list) if options.erase_list else set()
@@ -107,22 +115,24 @@ def main():
         if not os.path.isfile(p):
             wtf(p + " isn't a file")
 
-    dbg(burn_list)
-    dbg(erase_list)
-    dbg(dump_list)
+    dbg("burn_list: ", list(burn_list))
+    dbg("erase_list: ", list(erase_list))
+    dbg("dump_list: ", list(dump_list))
 
+    sg_fd = -1
     if options.sg_path:
         if not os.path.exists(options.sg_path):
             wtf(options.sg_path, "does not exists")
         else:
             sg_path = options.sg_path
+            sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
     else:
-        sg_path = wait_and_get_im_sg_path()
+        sg_fd = wait_and_get_im_sg_fd()
 
     time.sleep(0.5)
 
-    sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
-    assert(sg_fd > 0)
+    if sg_fd < 0:
+        wtf("unable to open device.")
     usb2_start(sg_fd)
     for d in dump_list:
         dumped_path = type_call_dict[d][0]+".img-dumped-"+ \

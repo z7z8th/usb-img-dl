@@ -3,10 +3,10 @@ import inspect
 #import logging
 from colored_print import *
 
-from config import *
+import config
 
 def dbg(*msg):
-    if(debug):
+    if(config.debug):
         colored_print('blue',None, None, *msg)
 
 

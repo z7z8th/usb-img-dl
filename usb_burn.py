@@ -10,12 +10,13 @@ from debug_util import *
 from utils import *
 from const_vars import *
 from bsp_part_alloc import *
-from usb_generic import read_blocks, write_blocks,write_large_buf, get_dev_block_info
+from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
 from usb_erase import *
 
 
 
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
+    # erase and set nand partition info
     usb_erase_dyn_id(sg_fd, dyn_id)
     sector_offset = DYN_ID_INIT_OFFSET / SECTOR_SIZE
     # start write img
@@ -24,6 +25,7 @@ def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
 
 def usb_burn_raw(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     sector_offset = nand_part_start_addr / SECTOR_SIZE
+    # erase first
     usb_erase_raw(sg_fd, nand_part_start_addr, nand_part_size)
     # start write img
     write_large_buf(sg_fd, img_buf, sector_offset)
@@ -36,7 +38,7 @@ def parse_yaffs2_header(header_buf):
     yaffs2_byte_per_chunk = str_to_int32_le(header_buf[8:12])
     yaffs2_byte_nand_spare = str_to_int32_le(header_buf[12:16])
 
-    info("yaffs2_image_header: head_id=%d, version=%d, "\
+    dbg("yaffs2_image_header: head_id=%d, version=%d, "\
             "chunk_size=%d, spare_size=%d" % \
             (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
                 yaffs2_byte_nand_spare))
@@ -68,11 +70,11 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     assert(isinstance(nand_part_size, int))
     ret = False
     dbg(get_cur_func_name() +
-        "(): nand_part_start_addr=%.8x, nand_part_size=%.8x" % 
+        "(): nand_part_start_addr=0x%.8x, nand_part_size=0x%.8x" % 
             (nand_part_start_addr, nand_part_size))
     sector_offset = nand_part_start_addr / SECTOR_SIZE
     img_total_size = len(img_buf)
-    dbg("img_total_size=", img_total_size)
+    dbg("img_total_size=0x%x" % img_total_size)
 
     # erase nand partition
     usb_erase_yaffs2(sg_fd, nand_part_start_addr, nand_part_size)
@@ -83,8 +85,8 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     size_written, size_nand_page, size_nand_spare = \
             parse_yaffs2_header(img_buf[:SIZE_YAFFS2_HEADER])
     pair_cnt_per_nand_block = SIZE_PER_WRITE / size_nand_page
-    dbg("size_written=0x%.4x, size_nand_page=%.4x, "\
-            "size_nand_spare=%.4x" %
+    dbg("size_written=0x%.4x, size_nand_page=0x%.4x, "\
+            "size_nand_spare=0x%.4x" %
             (size_written, size_nand_page, size_nand_spare))
 
     size_per_pair = size_nand_page + size_nand_spare
@@ -100,9 +102,9 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
         spare_buf[:] = NULL_CHAR * size_spare_per_nand_block
         size_to_write = min(img_total_size - size_written, size_per_nand_block)
         pair_cnt = size_to_write / size_per_pair
-#        dbg(get_cur_func_name() + \
-#            "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
-#                (size_written, size_to_write, pair_cnt))
+        # dbg(get_cur_func_name() + \
+        #   "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
+        #   (size_written, size_to_write, pair_cnt))
 
         # create buf
         for i in range(pair_cnt):
@@ -136,11 +138,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)
     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
-        
 
-
-#def usb_burn(sg_fd, ):
-    
 
 if __name__ == "__main__":
     pass

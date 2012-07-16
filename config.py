@@ -4,7 +4,5 @@
 
 from const_vars import *
 
-debug = True
-
-
+debug = False
 

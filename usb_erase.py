@@ -60,7 +60,7 @@ def usb_erase_yaffs2(sg_fd, nand_part_start_addr, nand_part_size):
         nand_erase_size    -= size_to_erase
         print('.', sep='', end='')
         sys.stdout.flush()
-    print()
+    info("\nerase yaffs2 succeed")
 
 
 if __name__ == "__main__":
