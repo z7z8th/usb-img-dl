@@ -4,12 +4,13 @@ import os
 import sys
 import time
 import glob
+import binascii
 
+import config
 from const_vars import *
 from runtime_global_vars import *
-import config
 from debug_util import *
-from usb_generic import read_blocks, write_blocks, get_dev_block_info
+from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
 
 
 def check_magic_str(sg_fd, cmd_sector_base):
@@ -19,7 +20,7 @@ def check_magic_str(sg_fd, cmd_sector_base):
     if not magic_block:
         return False
     if config.debug:
-        print_str_hex(magic_block[:4])
+        dbg("MAGIC_WORD:", binascii.b2a_hex(magic_block[:4]))
     if magic_block[:4] != MAGIC_WORD:
         return False
     if BL_MAGIC_STRING not in magic_block:
@@ -53,9 +54,9 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
         return False
     blOneStageReady = False
     if ord(version_sector[8]) == 1:
-        info("ROM Type: %s" % version_sector[9:11])
+        dbg("ROM Type: %s" % version_sector[9:11])
     if ord(version_sector[8]) == 2:
-        info("Flash Type: %s" % version_sector[9:11])
+        dbg("Flash Type: %s" % version_sector[9:11])
     if ord(version_sector[8]) == 3:
         major_version = int(version_sector[9:11])
         minor_version = int(version_sector[12:14])
@@ -64,7 +65,7 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
                 minor_version != 0 and \
                 small_version != 0:
             blOneStageReady = True
-            info("RAM Type: %s" % version_sector[9:17])
+            dbg("RAM Type: %s" % version_sector[9:17])
         if small_version >= 6:
             dl_ram_version_check = True
             return True
@@ -76,15 +77,15 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
     return False
 
 
-def get_dev_type(sg_fd, cmd_sector_base):
+def get_flash_type(sg_fd, cmd_sector_base):
     dev_type_sector = read_blocks(sg_fd, \
             cmd_sector_base + USB_PROGRAMMER_GET_DEV_TYPE_OFFSET, 1)
     if ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NAND:
         ucDevType = FLASH_DEV_TYPE_IS_NAND
-        info("dev type is nand flash")
+        dbg("dev type is nand flash")
     elif ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NOR:
         ucDevType = FLASH_DEV_TYPE_IS_NOR
-        info("dev type is nor flash")
+        dbg("dev type is nor flash")
     else:
         ucDevType = 0x00
         warn("dev type is not recognized")
@@ -93,16 +94,32 @@ def get_dev_type(sg_fd, cmd_sector_base):
 
 
 def get_im_sg_fd():
-    sg_list = glob.glob('/dev/sg[1-9]*')
+    sg_list = glob.glob('/dev/sg[0-9]*')
+    dbg(sg_list)
     sg_fd = -1
     for sg_path in sg_list:
+        dbg(sg_path)
         if sg_fd >= 0:
             os.close(sg_fd)
+        sg_fd = -1
         try:
             sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
             if sg_fd < 0:
+                dbg("open sg dev failed. sg_fd=", sg_fd)
                 continue
             dbg("\nchecking: ", sg_path)
+
+            ( periheral_qualifer, periheral_dev_type, 
+                    t10_vendor_ident, product_ident ) = \
+                            inquiry_sg_dev_info(sg_fd)
+            if periheral_qualifer != 0x00 or \
+                    periheral_dev_type != 0x00 or \
+                    not t10_vendor_ident.startswith('Infomax') or \
+                    not product_ident.startswith('Flash Disk'):
+                        dbg("not Infomax Flash Disk, skip")
+                        continue
+            info("sg dev info match")
+
             lastblock, block_size = get_dev_block_info(sg_fd)
             if block_size and block_size != SECTOR_SIZE:
                 warn("unable to handle block_size=%d, must be %d" \
@@ -112,7 +129,6 @@ def get_im_sg_fd():
                 #warn("fail to read lastblock of ", sg_fd)
                 continue
 
-            info("lastblock=%d" % lastblock)
             cmd_sector_base = lastblock - COMMAND_AREA_SIZE
             ret = check_magic_str(sg_fd, cmd_sector_base)
             if ret: 
@@ -133,16 +149,17 @@ def get_im_sg_fd():
             else:
                 wtf("change device to download mode failed")
 
-            ret = get_dev_type(sg_fd, cmd_sector_base)
+            ret = get_flash_type(sg_fd, cmd_sector_base)
             if ret:
-                info("get dev type succeed")
+                info("get flash type succeed")
             else:
-                warn("get dev type failed, maybe this is a bug")
+                warn("get flash type failed, maybe this is a bug")
                 continue
             return sg_fd
         except EnvironmentError as e:
+            dbg("sg_fd=", sg_fd)
+            dbg(e)
             pass
-            #err(str(e))
     if sg_fd >= 0:
         os.close(sg_fd)
     return None
@@ -160,4 +177,5 @@ def wait_and_get_im_sg_fd():
 
 
 if __name__ == "__main__":
+    config.debug = True
     wait_and_get_im_sg_fd()

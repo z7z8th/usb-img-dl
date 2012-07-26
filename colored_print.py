@@ -47,25 +47,9 @@ ATTRIBUTES = dict(
 del ATTRIBUTES['']
 
 
-HIGHLIGHTS = dict(
-        list(zip([
-            'on_grey',
-            'on_red',
-            'on_green',
-            'on_yellow',
-            'on_blue',
-            'on_magenta',
-            'on_cyan',
-            'on_white'
-            ],
-            list(range(40, 48))
-            ))
-        )
-
-
 COLORS = dict(
         list(zip([
-            'grey',
+            'black',
             'red',
             'green',
             'yellow',
@@ -79,17 +63,33 @@ COLORS = dict(
         )
 
 
+BACKGROUND_COLORS= dict(
+        list(zip([
+            'black',
+            'red',
+            'green',
+            'yellow',
+            'blue',
+            'magenta',
+            'cyan',
+            'white'
+            ],
+            list(range(40, 48))
+            ))
+        )
+
+
 RESET = '\033[0m'
 
 
-def colored_print(color, on_color, attrs, *args):
+def colored_print(color, bg_color, attrs, *args):
     """Colorize text.
 
     Available text colors:
         red, green, yellow, blue, magenta, cyan, white.
 
-    Available text highlights:
-        on_red, on_green, on_yellow, on_blue, on_magenta, on_cyan, on_white.
+    Available background colors:
+        red, green, yellow, blue, magenta, cyan, white.
 
     Available attributes:
         bold, dark, underline, blink, reverse, concealed.
@@ -100,8 +100,8 @@ def colored_print(color, on_color, attrs, *args):
         if color is not None:
             text = fmt_str % (COLORS[color], text)
 
-        if on_color is not None:
-            text = fmt_str % (HIGHLIGHTS[on_color], text)
+        if bg_color is not None:
+            text = fmt_str % (BACKGROUND_COLORS[bg_color], text)
 
         if attrs is not None:
             for attr in attrs:
@@ -112,5 +112,8 @@ def colored_print(color, on_color, attrs, *args):
 
 
 if __name__ == "__main__":
-    colored_print('red', 'on_white', None, "Hello world")
-    colored_print('yellow', 'on_green', None, "Hello world")
+    colored_print('green', None, ['bold'], "Hello world")
+    colored_print('blue', 'black', None, "Hello world")
+    colored_print('red', 'white', None, "Hello world")
+    colored_print('yellow', 'green', None, "Hello world")
+    colored_print('green', 'yellow', None, "Hello world")
