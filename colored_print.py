@@ -20,6 +20,7 @@
 # THE SOFTWARE.
 #
 # Author: Konstantin Lepa <konstantin.lepa@gmail.com>
+# modified by: Bob Zhao <bob.zhao@infomax.com.tw>
 
 """ANSII Color formatting for output in terminal."""
 from __future__ import print_function

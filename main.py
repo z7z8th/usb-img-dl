@@ -2,17 +2,16 @@
 import time
 import mmap
 import os
-
-from const_vars import *
-from runtime_global_vars import *
-import config
-from debug_util import *
-from check_bsp_pkg import *
-from usb_probe_dev import wait_and_get_im_sg_fd
 from optparse import OptionParser
-from usb_burn import *
+
+import config
+import runtime_config
+from const_vars import *
+from debug_util import *
+import mtd_part_alloc
+from usb_probe_dev import wait_and_get_im_sg_fd
 from usb_misc import *
-from bsp_part_alloc import *
+from usb_burn import *
 
 type_call_dict = {}
 
@@ -20,13 +19,19 @@ def update_type_call_dict():
     global type_call_dict
     type_call_dict = { 
         'b': ("barebox",       'dyn_id', ID_BAREBOX),
-        'B': ('boot',          'raw',    (BOOTIMG_OFFSET,  BOOTIMG_LENGTH)),
-        'r': ('recovery',      'raw',    (RECOVERY_OFFSET, RECOVERY_LENGTH)),
-        's': ('system',        'yaffs2',  (SYSTEM_OFFSET, SYSTEM_LENGTH)),
-        'm': ('modem-or-ecos', 'raw',    (PS_MODEM_OFFSET, PS_MODEM_LENGTH)),
+        'B': ('boot',          'raw',    (mtd_part_alloc.BOOTIMG_OFFSET,  
+                                            mtd_part_alloc.BOOTIMG_LENGTH)),
+        'r': ('recovery',      'raw',    (mtd_part_alloc.RECOVERY_OFFSET, 
+                                            mtd_part_alloc.RECOVERY_LENGTH)),
+        's': ('system',        'yaffs2',  (mtd_part_alloc.SYSTEM_OFFSET, 
+                                            mtd_part_alloc.SYSTEM_LENGTH)),
+        'm': ('modem-or-ecos', 'raw',    (mtd_part_alloc.PS_MODEM_OFFSET,
+                                            mtd_part_alloc.PS_MODEM_LENGTH)),
         'c': ('charging-icon', 'dyn_id', ID_ICON),
-        'u': ('userdata',      'yaffs2',  (UDATA_OFFSET,  UDATA_LENGTH)),
-        'M': ('machine-data',  'yaffs2',  (MDATA_OFFSET,  MDATA_LENGTH)),
+        'u': ('userdata',      'yaffs2',  (mtd_part_alloc.UDATA_OFFSET,  
+                                            mtd_part_alloc.UDATA_LENGTH)),
+        'M': ('machine-data',  'yaffs2',  (mtd_part_alloc.MDATA_OFFSET,  
+                                            mtd_part_alloc.MDATA_LENGTH)),
         'i': ('IMEI-data',     'dyn_id', ID_IMEI),
         'd': ('barebox-data',  'dyn_id', ID_BAREBOX_ENV),
         'R': ('RAM-SD-loader', 'dyn_id', ID_LDR_APP),  # this type maybe wrong
@@ -87,12 +92,12 @@ def main():
     if options.bsp12_alloc and options.bsp13_alloc:
         wtf("only one type of alloc can be specified")
     if options.bsp12_alloc:
-        use_bsp12_allocation()
+        mtd_part_alloc.use_bsp12_allocation()
     elif options.bsp13_alloc:
-        use_bsp13_allocation()
+        mtd_part_alloc.use_bsp13_allocation()
     else:
-        info("use default alloc: bsp13")
-        use_bsp13_allocation()
+        warn("use default alloc: bsp13")
+        mtd_part_alloc.use_bsp13_allocation()
     #print_allocation()
 
     type_call_keys = set(type_call_dict.keys())

@@ -2,45 +2,12 @@ import os
 from debug_util import *
 from const_vars import *
 
-PACKAGE_HEADER_MAGIC_PATTERN = "(^_^)y :-)(^~~^)"
-PACKAGE_HEADER_PLATFORM      = "iM9828"
-PACKAGE_TAIL_MAGIC_PATTERN   = "(^~~^)(-: y(^_^)"
-PACKAGE_TAIL_PLATFORM        = "im98xx"
-
-IMG_BAREBOX        = 0x1
-IMG_LDR_APP        = 0x2
-IMG_MODEM          = 0x3
-IMG_BOOTIMG        = 0x4
-IMG_RECOVERY       = 0x5
-IMG_SYSTEM         = 0x6
-IMG_M_DATA         = 0x7
-IMG_USER_DATA      = 0x8
-IMG_IMEI           = 0x9
-IMG_BAREBOX_ENV    = 0xA
-IMG_ICON           = 0xB
-IMG_MAX            = 0xC
-
-img_type_dict = {
-0x1 : "IMG_BAREBOX",
-0x2 : "IMG_LDR_APP",
-0x3 : "IMG_MODEM",
-0x4 : "IMG_BOOTIMG",
-0x5 : "IMG_RECOVERY",
-0x6 : "IMG_SYSTEM",
-0x7 : "IMG_M_DATA",
-0x8 : "IMG_USER_DATA",
-0x9 : "IMG_IMEI",
-0xA : "IMG_BAREBOX_ENV",
-0xB : "IMG_ICON",
-0xC : "IMG_MAX"
-}
-
-img_pos_in_bsp = dict()
 
 def check_bsp_pkg(pkg_path):
     if not os.path.exists(pkg_path):
         warn(pkg_path + " does not exists")
         return False
+    img_pos_in_pkg = dict()
     ret = False
     pkg_fd = open(pkg_path, 'rb')
     if pkg_fd:
@@ -81,9 +48,9 @@ def check_bsp_pkg(pkg_path):
             if img_type == IMG_SYSTEM or \
                     img_type == IMG_M_DATA or \
                     img_type == IMG_USER_DATA:
-                img_pos_in_bsp[img_type] = (position, image_size)
+                img_pos_in_pkg[img_type] = (position, image_size)
             else:
-                img_pos_in_bsp[img_type] = (position, tmp)
+                img_pos_in_pkg[img_type] = (position, tmp)
             position += tmp
         elif platform_name == PACKAGE_TAIL_PLATFORM:
             ret = True
@@ -95,7 +62,7 @@ def check_bsp_pkg(pkg_path):
     if magic_name == PACKAGE_TAIL_MAGIC_PATTERN:
         ret = True
     pkg_fd.close()
-    return ret
+    return ret, img_pos_in_pkg
 
 
 if __name__ == '__main__':
@@ -103,5 +70,5 @@ if __name__ == '__main__':
     if len(sys.argv) != 2 or \
             not os.path.exists(sys.argv[1]):
         wtf("usage: %s BSP_Package_path" % sys.argv[0])
-    check_bsp_pkg(sys.argv[1])
-    print img_pos_in_bsp
+    ret, img_pos_in_pkg = check_bsp_pkg(sys.argv[1])
+    print ret, img_pos_in_pkg

@@ -6,10 +6,9 @@ import struct
 import ctypes
 import time
 
+from const_vars import *
 from debug_util import *
 from utils import *
-from const_vars import *
-from bsp_part_alloc import *
 from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
 from usb_erase import *
 
@@ -23,10 +22,10 @@ def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     write_large_buf(sg_fd, img_buf, sector_offset)
 
 
-def usb_burn_raw(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
-    sector_offset = nand_part_start_addr / SECTOR_SIZE
+def usb_burn_raw(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
+    sector_offset = mtd_part_start_addr / SECTOR_SIZE
     # erase first
-    usb_erase_raw(sg_fd, nand_part_start_addr, nand_part_size)
+    usb_erase_raw(sg_fd, mtd_part_start_addr, mtd_part_size)
     # start write img
     write_large_buf(sg_fd, img_buf, sector_offset)
 
@@ -64,20 +63,20 @@ def parse_yaffs2_header(header_buf):
     return (header_size, size_nand_page, size_nand_spare)
 
 
-def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
+def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     assert(isinstance(sg_fd, int))
-    assert(isinstance(nand_part_start_addr, int))
-    assert(isinstance(nand_part_size, int))
+    assert(isinstance(mtd_part_start_addr, int))
+    assert(isinstance(mtd_part_size, int))
     ret = False
     dbg(get_cur_func_name() +
-        "(): nand_part_start_addr=0x%.8x, nand_part_size=0x%.8x" % 
-            (nand_part_start_addr, nand_part_size))
-    sector_offset = nand_part_start_addr / SECTOR_SIZE
+        "(): mtd_part_start_addr=0x%.8x, mtd_part_size=0x%.8x" % 
+            (mtd_part_start_addr, mtd_part_size))
+    sector_offset = mtd_part_start_addr / SECTOR_SIZE
     img_total_size = len(img_buf)
     dbg("img_total_size=0x%x" % img_total_size)
 
     # erase nand partition
-    usb_erase_yaffs2(sg_fd, nand_part_start_addr, nand_part_size)
+    usb_erase_yaffs2(sg_fd, mtd_part_start_addr, mtd_part_size)
 
     # write yaffs2
     info("start to write yaffs2")
@@ -98,9 +97,11 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
     page_buf = ctypes.create_string_buffer(size_page_per_nand_block)
     spare_buf = ctypes.create_string_buffer(size_spare_per_nand_block)
     while size_written < img_total_size:
-        page_buf[:] = NULL_CHAR * size_page_per_nand_block
-        spare_buf[:] = NULL_CHAR * size_spare_per_nand_block
+        #page_buf[:] = NULL_CHAR * size_page_per_nand_block
+        #spare_buf[:] = NULL_CHAR * size_spare_per_nand_block
         size_to_write = min(img_total_size - size_written, size_per_nand_block)
+        if size_to_write < size_per_nand_block:
+            break
         pair_cnt = size_to_write / size_per_pair
         # dbg(get_cur_func_name() + \
         #   "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
@@ -119,10 +120,15 @@ def usb_burn_yaffs2(sg_fd, img_buf, nand_part_start_addr, nand_part_size):
             spare_buf[spare_buf_start:spare_buf_start+size_nand_spare]=\
                     img_buf[img_buf_spare_start:img_buf_spare_end]
 
-        # dbg("pair_cnt=", pair_cnt)
+        page_buf_fill_cnt = pair_cnt * size_nand_page
+        spare_buf_fill_cnt = pair_cnt * size_nand_spare
+        page_buf[page_buf_fill_cnt:] = NULL_CHAR * (size_page_per_nand_block - page_buf_fill_cnt)
+        spare_buf[spare_buf_fill_cnt:] = NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt)
+
         # do write to disk
         print('.', sep='', end='')
         sys.stdout.flush()
+
         # dbg("write spare_buf")
         write_blocks(sg_fd, spare_buf.raw,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,

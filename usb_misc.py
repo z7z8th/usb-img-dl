@@ -2,13 +2,13 @@ from const_vars import *
 from debug_util import *
 from usb_generic import *
 
-def set_dl_img_type(sg_fd, dl_img_type, nand_part_start_addr):
+def set_dl_img_type(sg_fd, dl_img_type, mtd_part_start_addr):
     dbg("start of "+get_cur_func_name())
     buf = chr(dl_img_type) + NULL_CHAR * (SECTOR_SIZE - 1)
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_DEVICE, 1)
     if not ret:
         wtf("fail to set download img type")
-    buf = int32_to_str(nand_part_start_addr)
+    buf = int32_to_str(mtd_part_start_addr)
     buf += NULL_CHAR * (SECTOR_SIZE - 4)
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_ADDR, 1)
     if not ret:

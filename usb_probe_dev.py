@@ -7,8 +7,8 @@ import glob
 import binascii
 
 import config
+import runtime_config
 from const_vars import *
-from runtime_global_vars import *
 from debug_util import *
 from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
 
@@ -169,6 +169,7 @@ def wait_and_get_im_sg_fd():
     while True:
         sg_fd = get_im_sg_fd()
         if sg_fd:
+            print()
             return sg_fd
         time.sleep(0.5)
         print('.', sep='', end='')
