@@ -9,6 +9,7 @@ import time
 from const_vars import *
 from debug_util import *
 from utils import *
+import mtd_part_alloc
 from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
 from usb_erase import *
 
@@ -17,7 +18,7 @@ from usb_erase import *
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     # erase and set nand partition info
     usb_erase_dyn_id(sg_fd, dyn_id)
-    sector_offset = DYN_ID_INIT_OFFSET / SECTOR_SIZE
+    sector_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET / SECTOR_SIZE
     # start write img
     write_large_buf(sg_fd, img_buf, sector_offset)
 

@@ -8,12 +8,13 @@ import ctypes
 from const_vars import *
 from debug_util import *
 from utils import *
+import mtd_part_alloc
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
 
 
 def usb_erase_dyn_id(sg_fd, dyn_id):
-    dyn_id_init_offset = DYN_ID_INIT_OFFSET
-    dyn_id_init_len    = DYN_ID_INIT_LENGTH
+    dyn_id_init_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET
+    dyn_id_init_len    = mtd_part_alloc.DYN_ID_INIT_LENGTH
     platform_id = 0x15
 
     buf = int32_to_str(dyn_id_init_offset)

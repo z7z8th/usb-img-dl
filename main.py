@@ -163,6 +163,7 @@ def main():
 
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
+            info('-'*80)
             info("burn "+type_call_dict[b][0]+": "+img_paths[i])
             if not os.path.basename(img_paths[i]).startswith(type_call_dict[b][0]):
                 wtf("img file pattern not match, you maybe burning the wrong img")
@@ -182,7 +183,7 @@ def main():
                     usb_burn_yaffs2(sg_fd, img_buf, burn_offset, burn_lenght)
                 else:
                     wtf("unknown img type")
-                info("\n;-) burn %s succeed!" % burn_desc)
+                info("\n;-) burn %s succeed!\n" % burn_desc)
                 img_buf.close()
 
     usb2_end(sg_fd)
