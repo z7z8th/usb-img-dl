@@ -25,3 +25,26 @@ def str_to_int32_be(str_4bytes):
     i32 = ord(str_4bytes[0])<<24 | ord(str_4bytes[1])<<16 | \
             ord(str_4bytes[2]) << 8 | ord(str_4bytes[3])
     return i32
+
+def cmp_version(v1, v2):
+    assert(len(v1) == 3 and len(v2) == 3)
+    for x1, x2 in zip(v1, v2):
+        # print x1, x2
+        if x1 < x2:
+            return -1
+        elif x1 > x2:
+            return 1
+        else:
+            continue
+    return 0
+
+
+if __name__ == "__main__":
+    assert(cmp_version([1,2,3], [1,2,3]) == 0)
+    assert(cmp_version([1,2,4], [1,2,3]) == 1)
+    assert(cmp_version([1,2,3], [1,2,4]) == -1)
+    assert(cmp_version([1,3,3], [1,2,4]) == 1)
+    assert(cmp_version([1,1,6], [1,2,4]) == -1)
+    assert(cmp_version([2,1,6], [1,2,4]) == 1)
+    assert(cmp_version([2,4,6], [1,2,4]) == 1)
+    info("test for cmp_version passed")

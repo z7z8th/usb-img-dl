@@ -179,17 +179,6 @@ img_type_dict = {
 
 
 
-major_version = 0
-minor_version = 0
-small_version = 0
-
-dl_major_version = 0
-dl_minor_version = 0
-dl_small_version = 0
-
-TwoStageDownload = TWO_STAGE_ZERO_OP
-
-dl_ram_version_check = False
 #  To make sure user version is ready to download 
-userModeOfDownloader = 0  #temp val, set randomly by me
+#userModeOfDownloader = 0  #temp val, set randomly by me
 

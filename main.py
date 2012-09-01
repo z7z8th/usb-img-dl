@@ -17,24 +17,45 @@ type_call_dict = {}
 
 def update_type_call_dict():
     global type_call_dict
-    type_call_dict = { 
-        'b': ("barebox",       'dyn_id', ID_BAREBOX),
-        'B': ('boot',          'raw',    (mtd_part_alloc.BOOTIMG_OFFSET,  
-                                            mtd_part_alloc.BOOTIMG_LENGTH)),
-        'r': ('recovery',      'raw',    (mtd_part_alloc.RECOVERY_OFFSET, 
-                                            mtd_part_alloc.RECOVERY_LENGTH)),
-        's': ('system',        'yaffs2',  (mtd_part_alloc.SYSTEM_OFFSET, 
-                                            mtd_part_alloc.SYSTEM_LENGTH)),
-        'm': ('modem-or-ecos', 'raw',    (mtd_part_alloc.PS_MODEM_OFFSET,
-                                            mtd_part_alloc.PS_MODEM_LENGTH)),
-        'c': ('charging-icon', 'dyn_id', ID_ICON),
-        'u': ('userdata',      'yaffs2',  (mtd_part_alloc.UDATA_OFFSET,  
-                                            mtd_part_alloc.UDATA_LENGTH)),
-        'M': ('machine-data',  'yaffs2',  (mtd_part_alloc.MDATA_OFFSET,  
-                                            mtd_part_alloc.MDATA_LENGTH)),
-        'i': ('IMEI-data',     'dyn_id', ID_IMEI),
-        'd': ('barebox-data',  'dyn_id', ID_BAREBOX_ENV),
-        'R': ('RAM-SD-loader', 'dyn_id', ID_LDR_APP),  # this type maybe wrong
+    type_call_dict = {
+        'b': {'std_name':"barebox",   'name_pattern':r'barebox',
+                'img_type':'dyn_id', 'func_params':ID_BAREBOX},
+
+        'B': {'std_name':'boot',          'name_pattern':r'boot',
+                'img_type':'raw',    'func_params':(mtd_part_alloc.BOOTIMG_OFFSET,
+                                            mtd_part_alloc.BOOTIMG_LENGTH)},
+
+        'r': {'std_name':'recovery',      'name_pattern':r'recovery',
+                'img_type':'raw',    'func_params':(mtd_part_alloc.RECOVERY_OFFSET,
+                                            mtd_part_alloc.RECOVERY_LENGTH)},
+
+        's': {'std_name':'system',        'name_pattern':r'system',
+                'img_type':'yaffs2',  'func_params':(mtd_part_alloc.SYSTEM_OFFSET,
+                                            mtd_part_alloc.SYSTEM_LENGTH)},
+
+        'm': {'std_name':'modem-or-ecos', 'name_pattern':r'modem|ecos',
+                'img_type':'raw',    'func_params':(mtd_part_alloc.PS_MODEM_OFFSET,
+                                            mtd_part_alloc.PS_MODEM_LENGTH)},
+
+        'c': {'std_name':'charging-icon', 'name_pattern':r'lcm|icon',
+                'img_type':'dyn_id', 'func_params':ID_ICON},
+
+        'u': {'std_name':'userdata',      'name_pattern':r'udata|userdata',
+                'img_type':'yaffs2',  'func_params':(mtd_part_alloc.UDATA_OFFSET,
+                                            mtd_part_alloc.UDATA_LENGTH)},
+
+        'M': {'std_name':'machine-data',  'name_pattern':r'mdata|macine-data',
+                'img_type':'yaffs2',  'func_params':(mtd_part_alloc.MDATA_OFFSET,
+                                            mtd_part_alloc.MDATA_LENGTH)},
+
+        'i': {'std_name':'IMEI-data',     'name_pattern':r'imei',
+                'img_type':'dyn_id', 'func_params':ID_IMEI},
+
+        'd': {'std_name':'barebox-data',  'name_pattern':r'barebox-data',
+                'img_type':'dyn_id', 'func_params':ID_BAREBOX_ENV},
+
+        'R': {'std_name':'RAM-SD-loader', 'name_pattern':r'ram_ldr|ldr_app|ram_loader',
+                'img_type':'dyn_id', 'func_params':ID_LDR_APP},  # this type maybe wrong
         }
 
 update_type_call_dict()
@@ -43,7 +64,7 @@ update_type_call_dict()
 USAGE_MSG_HEADER = "usage: %prog <options> <args> [path/to/img...]\n" \
 "available partition/img type list are:\n"
 for type in 'bBrsmcuMidR':
-    USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type][0])
+    USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type]['std_name'])
 USAGE_MSG_HEADER += "\nif you specify more than one of dump/erase/burn,\n" \
         "dump will go first, then erase, then burn.\n"\
         "burn will always be the last action"
@@ -60,7 +81,7 @@ def parse_options():
             help="burn img to board: %metavar is a combination of partition/img" \
                  "i.e.: '-b Bsu' means to burn Boot,System,UserData to board")
     parser.add_option("-e", "--erase", type="string", dest="erase_list", \
-            metavar="PART_PATTERN", 
+            metavar="PART_PATTERN",
             help="erase nand partitions: %metavar is a combination of partition/img" \
                  "i.e.: '-e Bsu' means to erase Boot,System,UserData of board")
     parser.add_option("-d", "--dump", type="string", dest="dump_list", \
@@ -71,7 +92,7 @@ def parse_options():
                  "<PART_TYPE>.img-dumped-<TIME>")
     parser.add_option("-A", "--erase-all", action="store_true", dest="erase_all",
             help="erase the whole nand flash")
-    parser.add_option("-i", "--disk-path", type="string", dest="sg_path", 
+    parser.add_option("-i", "--disk-path", type="string", dest="sg_path",
             help="the path to the flash disk. when use this option, "\
                     "the device should already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
@@ -106,7 +127,7 @@ def main():
     dump_list  = set(options.dump_list)  if options.dump_list  else set()
     for s in [burn_list, erase_list, dump_list]:
         if len(s) != len(s & type_call_keys):
-            wtf("%s contains invalid partition/img types: %s" 
+            wtf("%s contains invalid partition/img types: %s"
                     % (str(list(s)), str(list(s - type_call_keys))))
 
     if options.burn_list and len(options.burn_list) != len(burn_list):
@@ -140,21 +161,21 @@ def main():
         wtf("unable to open device.")
     usb2_start(sg_fd)
     for d in dump_list:
-        dumped_path = type_call_dict[d][0]+".img-dumped-"+ \
+        dumped_path = type_call_dict[d]['std_name']+".img-dumped-"+ \
                 time.strftime("%Y%m%d_%H%M%S", time.localtime())
-        info("dump "+type_call_dict[d][0]+" -> "+dumped_path)
+        info("dump "+type_call_dict[d]['std_name']+" -> "+dumped_path)
 
     for e in erase_list:
-        erase_desc = type_call_dict[e][0]
-        erase_type = type_call_dict[e][1]
+        erase_desc = type_call_dict[e]['std_name']
+        erase_type = type_call_dict[e]['img_type']
         info("erase " + erase_desc)
         if erase_type == 'dyn_id':
-            usb_erase_dyn_id(sg_fd, type_call_dict[e][2])
-        elif type_call_dict[e][1] == 'raw':
-            erase_offset, erase_length = type_call_dict[e][2]
+            usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
+        elif type_call_dict[e]['img_type'] == 'raw':
+            erase_offset, erase_length = type_call_dict[e]['func_params']
             usb_erase_raw(sg_fd, erase_offset, erase_length)
-        elif type_call_dict[e][1] == 'yaffs2':
-            erase_offset, erase_length = type_call_dict[e][2]
+        elif type_call_dict[e]['img_type'] == 'yaffs2':
+            erase_offset, erase_length = type_call_dict[e]['func_params']
             usb_erase_yaffs2(sg_fd, erase_offset, erase_length)
         else:
             wtf("unknown img type")
@@ -164,22 +185,22 @@ def main():
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
             info('-'*80)
-            info("burn "+type_call_dict[b][0]+": "+img_paths[i])
-            if not os.path.basename(img_paths[i]).startswith(type_call_dict[b][0]):
+            info("burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
+            if not os.path.basename(img_paths[i]).startswith(type_call_dict[b]['std_name']):
                 wtf("img file pattern not match, you maybe burning the wrong img")
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
                 set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
                 time.sleep(0.5)
-                burn_desc = type_call_dict[b][0]
-                burn_type = type_call_dict[b][1]
+                burn_desc = type_call_dict[b]['std_name']
+                burn_type = type_call_dict[b]['img_type']
                 if burn_type == 'dyn_id':
-                    usb_burn_dyn_id(sg_fd, img_buf, type_call_dict[b][2])
+                    usb_burn_dyn_id(sg_fd, img_buf, type_call_dict[b]['func_params'])
                 elif burn_type == 'raw':
-                    burn_offset, burn_lenght = type_call_dict[b][2]
+                    burn_offset, burn_lenght = type_call_dict[b]['func_params']
                     usb_burn_raw(sg_fd, img_buf, burn_offset, burn_lenght)
-                elif type_call_dict[b][1] == 'yaffs2':
-                    burn_offset, burn_lenght = type_call_dict[b][2]
+                elif type_call_dict[b]['img_type'] == 'yaffs2':
+                    burn_offset, burn_lenght = type_call_dict[b]['func_params']
                     usb_burn_yaffs2(sg_fd, img_buf, burn_offset, burn_lenght)
                 else:
                     wtf("unknown img type")

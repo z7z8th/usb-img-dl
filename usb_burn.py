@@ -13,7 +13,9 @@ import mtd_part_alloc
 from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
 from usb_erase import *
 
-
+def usb_burn_ram_loader(sg_fd, img_buf):
+    RAMLOADER_SECTOR_OFFSET = 0   # the first sector of course
+    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET)
 
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     # erase and set nand partition info
