@@ -5,7 +5,7 @@ import os
 from optparse import OptionParser
 
 import configs
-import runtime_vars
+import configs
 from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
@@ -54,10 +54,11 @@ def update_type_call_dict():
         'd': {'std_name':'barebox-data',  'name_pattern':r'barebox-data',
                 'img_type':'dyn_id', 'func_params':ID_BAREBOX_ENV},
 
-        'R': {'std_name':'RAM-SD-loader', 'name_pattern':r'ram_ldr|ldr_app|ram_loader',
-                'img_type':'dyn_id', 'func_params':ID_LDR_APP},  # this type maybe wrong
+        'R': {'std_name':'ram-loader', 'name_pattern':r'ram_ldr|ldr_app|ram_loader',
+                'img_type':'ram_loader', 'func_params':ID_LDR_APP},
         }
 
+####### update call dict ######
 update_type_call_dict()
 
 
@@ -93,8 +94,8 @@ def parse_options():
     parser.add_option("-A", "--erase-all", action="store_true", dest="erase_all",
             help="erase the whole nand flash")
     parser.add_option("-i", "--disk-path", type="string", dest="sg_path",
-            help="the path to the flash disk. when use this option, "\
-                    "the device should already in download mode")
+            help="the path to the flash disk, i.e. /dev/sg4 . when use this option, "\
+                    "the device must already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
             help="say yes to all additional confirmation")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
@@ -102,7 +103,7 @@ def parse_options():
     return parser.parse_args()
 
 
-def main():
+def usb_img_dl_main():
     options, args = parse_options()
     img_paths = args
     dbg("options: ", options)
@@ -110,6 +111,7 @@ def main():
 
     configs.debug = True if options.verbose else False
 
+    ################ update mtd partition allocation ################
     if options.bsp12_alloc and options.bsp13_alloc:
         wtf("only one type of alloc can be specified")
     if options.bsp12_alloc:
@@ -121,6 +123,7 @@ def main():
         mtd_part_alloc.use_bsp13_allocation()
     #print_allocation()
 
+    ################ check dump/erase/burn types ################
     type_call_keys = set(type_call_dict.keys())
     burn_list  = set(options.burn_list)  if options.burn_list  else set()
     erase_list = set(options.erase_list) if options.erase_list else set()
@@ -137,6 +140,7 @@ def main():
               " their count should equal" % (len(options.burn_list), len(args)) )
 
 
+    ################ check img file path ################
     for p in img_paths:
         if not os.path.isfile(p):
             wtf(p + " isn't a file")
@@ -145,6 +149,7 @@ def main():
     dbg("erase_list: ", list(erase_list))
     dbg("dump_list: ", list(dump_list))
 
+    ################ probe device ################
     sg_fd = -1
     if options.sg_path:
         if not os.path.exists(options.sg_path):
@@ -159,39 +164,67 @@ def main():
 
     if sg_fd < 0:
         wtf("unable to open device.")
+
+    ################# burn ram loader ################
+    if configs.ram_loader_need_update:
+        set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
+        ram_loader_path = os.path.join(INTERGRATED_BIN_DIR, 
+                configs.INTERGRATED_RAM_LOADER_NAME)
+        if 'R' in options.burn_list:
+            idx = options.burn_list.index('R')
+            ram_loader_path = img_paths[idx]
+            options.burn_list = options.burn_list.replace('R', '', 1)
+            img_paths.remove(idx)
+        info("burn ram_loader:", ram_loader_path)
+        with open(ram_loader_path, 'rb') as img_fd:
+            img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+            usb_burn_ram_loader(sg_fd, img_buf)
+            img_buf.close()
+
     usb2_start(sg_fd)
+
+    ################# dump ################
     for d in dump_list:
         dumped_path = type_call_dict[d]['std_name']+".img-dumped-"+ \
                 time.strftime("%Y%m%d_%H%M%S", time.localtime())
         info("dump "+type_call_dict[d]['std_name']+" -> "+dumped_path)
 
-    for e in erase_list:
-        erase_desc = type_call_dict[e]['std_name']
-        erase_type = type_call_dict[e]['img_type']
-        info("erase " + erase_desc)
-        if erase_type == 'dyn_id':
-            usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
-        elif type_call_dict[e]['img_type'] == 'raw':
-            erase_offset, erase_length = type_call_dict[e]['func_params']
-            usb_erase_raw(sg_fd, erase_offset, erase_length)
-        elif type_call_dict[e]['img_type'] == 'yaffs2':
-            erase_offset, erase_length = type_call_dict[e]['func_params']
-            usb_erase_yaffs2(sg_fd, erase_offset, erase_length)
-        else:
-            wtf("unknown img type")
-        info("\n;-) erase %s succeed!" % erase_desc)
+    ################ erase ################
+    assert(not (options.erase_all and len(erase_list)>0))
+    if options.erase_all:
+        usb_erase_whole_nand_flash(sg_fd)
+    else:
+        for e in erase_list:
+            erase_desc = type_call_dict[e]['std_name']
+            erase_type = type_call_dict[e]['img_type']
+            info("erase " + erase_desc)
+            if erase_type == 'dyn_id':
+                usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
+            elif type_call_dict[e]['img_type'] == 'raw':
+                erase_offset, erase_length = type_call_dict[e]['func_params']
+                usb_erase_raw(sg_fd, erase_offset, erase_length)
+            elif type_call_dict[e]['img_type'] == 'yaffs2':
+                erase_offset, erase_length = type_call_dict[e]['func_params']
+                usb_erase_yaffs2(sg_fd, erase_offset, erase_length)
+            else:
+                wtf("unknown img type")
+            info("\n;-) erase %s succeed!" % erase_desc)
 
-
+    ################ burn ################
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
             info('-'*80)
             info("burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
-            if not os.path.basename(img_paths[i]).startswith(type_call_dict[b]['std_name']):
+
+            if not re.match(type_call_dict[b]['name_pattern'],
+                    os.path.basename(img_paths[i])):
                 wtf("img file pattern not match, you maybe burning the wrong img")
+
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
                 set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
                 time.sleep(0.5)
+
                 burn_desc = type_call_dict[b]['std_name']
                 burn_type = type_call_dict[b]['img_type']
                 if burn_type == 'dyn_id':
@@ -202,8 +235,11 @@ def main():
                 elif type_call_dict[b]['img_type'] == 'yaffs2':
                     burn_offset, burn_lenght = type_call_dict[b]['func_params']
                     usb_burn_yaffs2(sg_fd, img_buf, burn_offset, burn_lenght)
+                elif type_call_dict[b]['img_type'] == 'ram_loader':
+                    pass
                 else:
                     wtf("unknown img type")
+
                 info("\n;-) burn %s succeed!\n" % burn_desc)
                 img_buf.close()
 
@@ -212,4 +248,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    usb_img_dl_main()

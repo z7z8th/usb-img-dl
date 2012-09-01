@@ -182,3 +182,4 @@ img_type_dict = {
 #  To make sure user version is ready to download 
 #userModeOfDownloader = 0  #temp val, set randomly by me
 
+INTERGRATED_BIN_DIR='intergrated-bin'
