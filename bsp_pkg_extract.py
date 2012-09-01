@@ -1,7 +1,7 @@
 import os
 import io
 import sys
-from debug_util import *
+from debug_utils import *
 from const_vars import *
 
 
@@ -20,7 +20,7 @@ def copy_img_from_pkg(pkg_fd, img_fd, img_size):
     img_fd.flush()
     os.fsync(img_fd)
 
-def extract_bsp_pkg(pkg_path, dest_dir):
+def bsp_pkg_extract(pkg_path, dest_dir):
     if not os.path.exists(pkg_path):
         warn(pkg_path + " does not exists")
         return False
@@ -97,5 +97,5 @@ if __name__ == '__main__':
     if len(sys.argv) != 3 or \
             not os.path.exists(sys.argv[1]) or \
             not os.path.exists(sys.argv[2]):
-        wtf("usage: %s BSP_Package_path  Dir_extract_to" % sys.argv[0])
-    extract_bsp_pkg(sys.argv[1], sys.argv[2])
+        wtf("usage: %s /path/to/bsp-package /dir/to/extract" % sys.argv[0])
+    bsp_pkg_extract(sys.argv[1], sys.argv[2])

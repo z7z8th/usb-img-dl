@@ -1,9 +1,9 @@
 import os
-from debug_util import *
+from debug_utils import *
 from const_vars import *
 
 
-def check_bsp_pkg(pkg_path):
+def bsp_pkg_check(pkg_path):
     if not os.path.exists(pkg_path):
         warn(pkg_path + " does not exists")
         return False
@@ -70,5 +70,5 @@ if __name__ == '__main__':
     if len(sys.argv) != 2 or \
             not os.path.exists(sys.argv[1]):
         wtf("usage: %s BSP_Package_path" % sys.argv[0])
-    ret, img_pos_in_pkg = check_bsp_pkg(sys.argv[1])
+    ret, img_pos_in_pkg = bsp_pkg_check(sys.argv[1])
     print ret, img_pos_in_pkg

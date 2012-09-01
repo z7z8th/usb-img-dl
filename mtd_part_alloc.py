@@ -1,5 +1,5 @@
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 
 # 1228 Partition =
 IM9828_NAND_OFFSET = 0x0

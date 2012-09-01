@@ -4,12 +4,12 @@ import mmap
 import os
 from optparse import OptionParser
 
-import config
-import runtime_config
+import configs
+import runtime_vars
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 import mtd_part_alloc
-from usb_probe_dev import wait_and_get_im_sg_fd
+from usb_probe import wait_and_get_im_sg_fd
 from usb_misc import *
 from usb_burn import *
 
@@ -87,7 +87,7 @@ def main():
     dbg("options: ", options)
     dbg("args: ", args)
 
-    config.debug = True if options.verbose else False
+    configs.debug = True if options.verbose else False
 
     if options.bsp12_alloc and options.bsp13_alloc:
         wtf("only one type of alloc can be specified")

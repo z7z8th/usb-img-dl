@@ -1,4 +1,4 @@
-from debug_util import *
+from debug_utils import *
 
 
 def int32_to_str(i32):

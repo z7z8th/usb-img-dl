@@ -5,9 +5,9 @@ from py_sg import write as sg_write
 from py_sg import read as sg_read
 from py_sg import SCSIError
 
-import config
+import configs
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 from utils import *
 
 INQUIRY = 0x12
@@ -118,7 +118,7 @@ def write_large_buf(sg_fd, large_buf, sector_offset):
 
 
 if __name__ == "__main__":
-    config.debug = True
+    configs.debug = True
     import sys
     sg_path = sys.argv[1]
     sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)

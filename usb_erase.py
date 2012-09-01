@@ -6,7 +6,7 @@ import struct
 import ctypes
 
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from usb_generic import read_blocks, write_blocks, get_dev_block_info
@@ -61,6 +61,10 @@ def usb_erase_yaffs2(sg_fd, mtd_part_start_addr, mtd_part_size):
         print('.', sep='', end='')
         sys.stdout.flush()
     info("\nerase yaffs2 succeed")
+
+def usb_erase_whole_nand_flash(sg_fd):
+    usb_erase_raw(sg_fd, mtd_part_alloc.IM9828_NAND_OFFSET,
+            mtd_part_alloc.IM9828_NAND_LENGTH)
 
 
 if __name__ == "__main__":

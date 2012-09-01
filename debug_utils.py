@@ -2,13 +2,13 @@ import io, os
 import inspect
 #import logging
 
-import config
+import configs
 
 from colored_print import *
 
 
 def dbg(*msg):
-    if(config.debug):
+    if(configs.debug):
         colored_print('green', None, None, *msg)
 
 

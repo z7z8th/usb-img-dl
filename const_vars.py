@@ -143,7 +143,7 @@ IMEISN_IMEI2                    = 0x5
 IMEISN_BTMAC                    = 0x6
 
 
-# extract bsp pkg_fd
+# magic word for extract bsp pkg
 PACKAGE_HEADER_MAGIC_PATTERN = "(^_^)y :-)(^~~^)"
 PACKAGE_HEADER_PLATFORM      = "iM9828"
 PACKAGE_TAIL_MAGIC_PATTERN   = "(^~~^)(-: y(^_^)"

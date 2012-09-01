@@ -7,7 +7,7 @@ import ctypes
 import time
 
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info

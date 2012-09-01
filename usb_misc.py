@@ -1,5 +1,5 @@
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 from usb_generic import *
 
 def set_dl_img_type(sg_fd, dl_img_type, mtd_part_start_addr):

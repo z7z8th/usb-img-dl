@@ -6,10 +6,10 @@ import time
 import glob
 import binascii
 
-import config
-import runtime_config
+import configs
+import runtime_vars
 from const_vars import *
-from debug_util import *
+from debug_utils import *
 from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
 
 
@@ -19,7 +19,7 @@ def check_magic_str(sg_fd, cmd_sector_base):
             cmd_sector_base + USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET, 1)
     if not magic_block:
         return False
-    if config.debug:
+    if configs.debug:
         dbg("MAGIC_WORD:", binascii.b2a_hex(magic_block[:4]))
     if magic_block[:4] != MAGIC_WORD:
         return False
@@ -178,5 +178,5 @@ def wait_and_get_im_sg_fd():
 
 
 if __name__ == "__main__":
-    config.debug = True
+    configs.debug = True
     wait_and_get_im_sg_fd()
