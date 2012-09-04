@@ -3,8 +3,8 @@ import os
 import io
 import sys
 import struct
-import ctypes
 import time
+import array
 
 from const_vars import *
 from debug_utils import *
@@ -100,13 +100,13 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     size_per_nand_block = size_page_per_nand_block + size_spare_per_nand_block
     assert(isinstance(size_per_nand_block, int))
 
-    page_buf = ctypes.create_string_buffer(size_page_per_nand_block)
-    spare_buf = ctypes.create_string_buffer(size_spare_per_nand_block)
+    page_buf = array.array('c', NULL_CHAR * size_page_per_nand_block)
+    spare_buf = array.array('c', NULL_CHAR * size_spare_per_nand_block)
     while size_written < img_total_size:
         #page_buf[:] = NULL_CHAR * size_page_per_nand_block
         #spare_buf[:] = NULL_CHAR * size_spare_per_nand_block
         size_to_write = min(img_total_size - size_written, size_per_nand_block)
-        if size_to_write < size_per_nand_block:
+        if size_to_write < size_per_pair:
             break
         pair_cnt = size_to_write / size_per_pair
         # dbg(get_cur_func_name() + \
@@ -122,25 +122,25 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
             page_buf_start = i*size_nand_page
             spare_buf_start = i*size_nand_spare
             page_buf[page_buf_start:page_buf_start+size_nand_page]=\
-                    img_buf[img_buf_page_start:img_buf_page_end]
+                    array.array('c', img_buf[img_buf_page_start:img_buf_page_end])
             spare_buf[spare_buf_start:spare_buf_start+size_nand_spare]=\
-                    img_buf[img_buf_spare_start:img_buf_spare_end]
+                    array.array('c', img_buf[img_buf_spare_start:img_buf_spare_end])
 
         page_buf_fill_cnt = pair_cnt * size_nand_page
         spare_buf_fill_cnt = pair_cnt * size_nand_spare
-        page_buf[page_buf_fill_cnt:] = NULL_CHAR * (size_page_per_nand_block - page_buf_fill_cnt)
-        spare_buf[spare_buf_fill_cnt:] = NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt)
+        page_buf[page_buf_fill_cnt:] = array.array('c', NULL_CHAR * (size_page_per_nand_block - page_buf_fill_cnt))
+        spare_buf[spare_buf_fill_cnt:] = array.array('c', NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt))
 
         # do write to disk
         print('.', sep='', end='')
         sys.stdout.flush()
 
         # dbg("write spare_buf")
-        write_blocks(sg_fd, spare_buf.raw,
+        write_blocks(sg_fd, spare_buf,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_block / SECTOR_SIZE)
         # dbg("write page_buf")
-        write_blocks(sg_fd, page_buf.raw, sector_offset, 
+        write_blocks(sg_fd, page_buf, sector_offset, 
                 (pair_cnt * size_nand_page) / SECTOR_SIZE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE

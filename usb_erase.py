@@ -3,7 +3,6 @@ import os
 import io
 import sys
 import struct
-import ctypes
 
 from const_vars import *
 from debug_utils import *
@@ -37,25 +36,25 @@ def usb_erase_raw(sg_fd, mtd_part_start_addr, mtd_part_size):
     write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
 
 def usb_erase_yaffs2(sg_fd, mtd_part_start_addr, mtd_part_size):
-    buf = ctypes.create_string_buffer(SECTOR_SIZE)
-    buf[0] = '\x01'
-    write_blocks(sg_fd, buf.raw, \
+    buf = '\x01'
+    buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
+    write_blocks(sg_fd, buf, \
             USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
-    buf[:] = NULL_CHAR * SECTOR_SIZE
-    buf[0:4] = int32_to_str(mtd_part_start_addr)
-    buf[4:8] = int32_to_str(mtd_part_size)
-    write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
+    buf = int32_to_str(mtd_part_start_addr)[0:4]
+    buf += int32_to_str(mtd_part_size)[0:4]
+    buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
+    write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
     info("start to erase yaffs2")
     nand_start_erase_addr = mtd_part_start_addr
     nand_erase_size = mtd_part_size
     while nand_erase_size > 0:
-        buf[:] = NULL_CHAR * SECTOR_SIZE
         size_to_erase = min(nand_erase_size, NAND_ERASE_MAX_LEN_PER_TIME)
-        buf[0:4] = int32_to_str(nand_start_erase_addr)
-        buf[4:8] = int32_to_str(size_to_erase)
-        write_blocks(sg_fd, buf.raw, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
+        buf = int32_to_str(nand_start_erase_addr)[0:4]
+        buf += int32_to_str(size_to_erase)[0:4]
+        buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
+        write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
         nand_start_erase_addr += size_to_erase
         nand_erase_size    -= size_to_erase
         print('.', sep='', end='')

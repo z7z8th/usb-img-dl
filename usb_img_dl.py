@@ -115,8 +115,10 @@ def usb_img_dl_main():
     if options.bsp12_alloc and options.bsp13_alloc:
         wtf("only one type of alloc can be specified")
     if options.bsp12_alloc:
+        info("use bsp12_alloc")
         mtd_part_alloc.use_bsp12_allocation()
     elif options.bsp13_alloc:
+        info("use bsp13_alloc")
         mtd_part_alloc.use_bsp13_allocation()
     else:
         warn("use default alloc: bsp13")
