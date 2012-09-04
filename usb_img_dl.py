@@ -2,6 +2,7 @@
 import time
 import mmap
 import os
+import re
 from optparse import OptionParser
 
 import configs

@@ -10,6 +10,7 @@ import configs
 import configs
 from const_vars import *
 from debug_utils import *
+from utils import *
 from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
 
 ram_loader_major_version = 0
@@ -58,7 +59,7 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
         ram_loader_major_version = int(version_sector[9:11])
         ram_loader_minor_version = int(version_sector[12:14])
         ram_loader_small_version = int(version_sector[15:17])
-        info("RAM Type: %s" % version_sector[9:17])
+        info("RAM Type (Ram Loader Version): %s" % version_sector[9:17])
 
         ram_loader_versions = [ram_loader_major_version, 
                     ram_loader_minor_version,
@@ -135,11 +136,7 @@ def get_im_sg_fd():
                 warn("magic string not match, this is ok to ignore")
                 continue
 
-            ret = check_ram_loader_version(sg_fd, cmd_sector_base)
-            if ret:
-                info("ramloader version check succeed")
-            else:
-                wtf("ramloader version check failed")
+            check_ram_loader_version(sg_fd, cmd_sector_base)
 
             ret = change_to_dl_mode(sg_fd)
             if ret:
