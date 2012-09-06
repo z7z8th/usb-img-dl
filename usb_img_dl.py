@@ -34,7 +34,7 @@ def update_type_call_dict():
                 'img_type':'yaffs2',  'func_params':(mtd_part_alloc.SYSTEM_OFFSET,
                                             mtd_part_alloc.SYSTEM_LENGTH)},
 
-        'm': {'std_name':'modem-or-ecos', 'name_pattern':r'modem|ecos',
+        'm': {'std_name':'modem-ecos-ps', 'name_pattern':r'modem|ecos',
                 'img_type':'raw',    'func_params':(mtd_part_alloc.PS_MODEM_OFFSET,
                                             mtd_part_alloc.PS_MODEM_LENGTH)},
 
@@ -169,7 +169,8 @@ def usb_img_dl_main():
         wtf("unable to open device.")
 
     ################# burn ram loader ################
-    if configs.ram_loader_need_update:
+    if configs.ram_loader_need_update or 'R' in options.burn_list:
+        info("Updating Ram Loader")
         set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
         ram_loader_path = os.path.join(INTERGRATED_BIN_DIR, 
                 configs.INTERGRATED_RAM_LOADER_NAME)
@@ -177,12 +178,13 @@ def usb_img_dl_main():
             idx = options.burn_list.index('R')
             ram_loader_path = img_paths[idx]
             options.burn_list = options.burn_list.replace('R', '', 1)
-            img_paths.remove(idx)
+            img_paths.remove(img_paths[idx])
         info("burn ram_loader:", ram_loader_path)
         with open(ram_loader_path, 'rb') as img_fd:
             img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
             usb_burn_ram_loader(sg_fd, img_buf)
             img_buf.close()
+        info("burn ram_loader succeed")
 
     usb2_start(sg_fd)
 
@@ -219,8 +221,8 @@ def usb_img_dl_main():
             info('-'*80)
             info("burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
 
-            if not re.match(type_call_dict[b]['name_pattern'],
-                    os.path.basename(img_paths[i])):
+            if not re.search(type_call_dict[b]['name_pattern'],
+                    os.path.basename(img_paths[i]).lower()):
                 wtf("img file pattern not match, you maybe burning the wrong img")
 
             with open(img_paths[i], 'rb') as img_fd:
