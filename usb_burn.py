@@ -14,11 +14,13 @@ from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_bloc
 from usb_erase import *
 
 def usb_burn_ram_loader(sg_fd, img_buf):
-    
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector of course
-    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET)
-    buf = NULL_CHAR * SECTOR_SIZE
-    write_blocks(sg_fd, buf, USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
+    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
+    try:
+        write_blocks(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
+    except OSError as e:
+        dbg(e)
+        pass
 
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     # erase and set nand partition info
@@ -31,7 +33,7 @@ def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
 def usb_burn_raw(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     sector_offset = mtd_part_start_addr / SECTOR_SIZE
     # erase first
-    usb_erase_raw(sg_fd, mtd_part_start_addr, mtd_part_size)
+    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size)
     # start write img
     write_large_buf(sg_fd, img_buf, sector_offset)
 
@@ -82,7 +84,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     dbg("img_total_size=0x%x" % img_total_size)
 
     # erase nand partition
-    usb_erase_yaffs2(sg_fd, mtd_part_start_addr, mtd_part_size)
+    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, True)
 
     # write yaffs2
     info("start to write yaffs2")
@@ -108,10 +110,11 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
         size_to_write = min(img_total_size - size_written, size_per_nand_block)
         if size_to_write < size_per_pair:
             break
+        is_last_block = (size_to_write < size_per_nand_block)
         pair_cnt = size_to_write / size_per_pair
-        # dbg(get_cur_func_name() + \
-        #   "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
-        #   (size_written, size_to_write, pair_cnt))
+        dbg(get_cur_func_name() + \
+           "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
+           (size_written, size_to_write, pair_cnt))
 
         # create buf
         for i in range(pair_cnt):
@@ -132,16 +135,23 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
         spare_buf[spare_buf_fill_cnt:] = array.array('c', NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt))
 
         # do write to disk
-        print('.', sep='', end='')
-        sys.stdout.flush()
+        sys.stdout.write('.')
+        #sys.stdout.flush()
 
+        if is_last_block:
+            dbg("write spare_buf, size=0x%x" % (size_nand_spare * pair_cnt))
         # dbg("write spare_buf")
         write_blocks(sg_fd, spare_buf,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_block / SECTOR_SIZE)
+        if is_last_block:
+            dbg("write page_buf, size=0x%x" % (size_nand_page * pair_cnt))
+        sys.stdout.flush()
         # dbg("write page_buf")
+        #write_blocks(sg_fd, page_buf, sector_offset, 
+        #        (pair_cnt * size_nand_page) / SECTOR_SIZE)
         write_blocks(sg_fd, page_buf, sector_offset, 
-                (pair_cnt * size_nand_page) / SECTOR_SIZE)
+                SECTOR_NUM_PER_WRITE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
 
