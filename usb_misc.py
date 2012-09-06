@@ -9,23 +9,25 @@ def set_dl_img_type(sg_fd, dl_img_type, mtd_part_start_addr):
     if not ret:
         wtf("fail to set download img type")
     buf = int32_to_str(mtd_part_start_addr)
-    buf += NULL_CHAR * (SECTOR_SIZE - 4)
+    buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_ADDR, 1)
     if not ret:
         wtf("fail to set download img addr")
     dbg("end of "+get_cur_func_name())
 
 
-def usb_wr_bb_reg(sg_fd, start_addr, length):
+def usb_wr_bb_reg(sg_fd, addr, value):
     dbg("start of "+get_cur_func_name())
     assert_number(sg_fd)
-    assert_number(start_addr)
-    assert_number(length)
-    buf = int32_to_str(start_addr)
-    buf += int32_to_str(length)
+    assert_number(addr)
+    assert_number(value)
+    buf = int32_to_str(addr)
+    buf += int32_to_str(value)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     #dbg(get_cur_func_name()+"(): len=", len(buf), "buf=", repr(buf))
-    write_blocks(sg_fd, buf, USB_PROGRAMMER_WR_BB_REG, 1)
+    ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_WR_BB_REG, 1)
+    if not ret:
+        time.sleep(0.100)
     dbg("end of "+get_cur_func_name())
 
 
@@ -55,11 +57,13 @@ def usb_reset_WDT(sg_fd):
 
 
 def usb2_start(sg_fd):
+    return
     set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
     usb_dl_start(sg_fd)
 
 
 def usb2_end(sg_fd):
+    return
     set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
     usb_dl_end(sg_fd)
 
