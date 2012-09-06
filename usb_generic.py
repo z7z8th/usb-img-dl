@@ -72,13 +72,15 @@ def read_blocks(sg_fd, sector_offset, sector_num):
     try:
         read_buf = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 200 )
     except SCSIError as e:
-        warn("SCSIError: ", e)
+        warn(get_cur_func_name()+"(): SCSIError: ", e)
         return None
     return read_buf
 
 
 WRITE_10 = 0x2a
-def write_blocks(sg_fd, buf, sector_offset, sector_num):
+def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
+    dbg("sg_fd=%d, sector_offset=%x, sector_num=%x, timeout=%d" % \
+            (sg_fd, sector_offset, sector_num, timeout))
     cmd = chr(WRITE_10) + NULL_CHAR
     cmd += int32_to_str(sector_offset)
     cmd += NULL_CHAR
@@ -88,33 +90,34 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num):
 
     ret = False
     try:
-        response = sg_write(sg_fd, cmd, buf, 2000 )
+        response = sg_write(sg_fd, cmd, buf, timeout)
         ret = True
     except SCSIError as e:
-        warn("SCSIError:", e)
-    except OSError as e:
-        warn("OSError: ", e)
+        warn(get_cur_func_name()+"(): SCSIError:", e)
+    #except OSError as e:
+    #    warn(get_cur_func_name()+"(): OSError: ", e)
     return ret
 
 
-def write_large_buf(sg_fd, large_buf, sector_offset):
+def write_large_buf(sg_fd, large_buf, sector_offset, size_per_write = SIZE_PER_WRITE):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
     dbg(get_cur_func_name(), "(): total sector num=",
             (float(img_total_size)/SECTOR_SIZE))
     size_written = 0
     while size_written < img_total_size:
-        buf_end_offset = min(img_total_size, size_written + SIZE_PER_WRITE)
+        buf_end_offset = min(img_total_size, size_written + size_per_write)
         sector_num_write = (buf_end_offset - size_written + \
                 SECTOR_SIZE - 1)/SECTOR_SIZE
         buf = large_buf[size_written : buf_end_offset]
         buf_len = buf_end_offset - size_written
-        if buf_len < SIZE_PER_WRITE:
+        if buf_len < size_per_write:
             align_len = ((buf_len+SECTOR_SIZE-1)/SECTOR_SIZE)*SECTOR_SIZE
             buf += NULL_CHAR * (align_len-buf_len)
         write_blocks(sg_fd, buf, sector_offset, sector_num_write)
-        size_written += SIZE_PER_WRITE
+        size_written += size_per_write
         sector_offset += sector_num_write
+    dbg("end of " + get_cur_func_name())
 
 
 if __name__ == "__main__":
