@@ -165,6 +165,7 @@ def wait_and_get_im_sg_fd():
         sg_fd = get_im_sg_fd()
         if sg_fd:
             print()
+            sys.stdout.flush()
             return sg_fd
         time.sleep(0.5)
         print('.', sep='', end='')
