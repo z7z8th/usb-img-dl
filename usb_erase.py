@@ -28,15 +28,6 @@ def usb_erase_dyn_id(sg_fd, dyn_id):
     write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
 
 
-# def usb_erase_raw(sg_fd, mtd_part_start_addr, mtd_part_size):
-#     buf = int32_to_str(mtd_part_start_addr)
-#     buf += int32_to_str(mtd_part_size)
-#     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
-#     info("start erase raw")
-#     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
-#     write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1, timeout=1500*(mtd_part_size/NAND_ERASE_MAX_LEN_PER_TIME))
-#     info("end erase raw")
-
 def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2 = False):
     if is_yaffs2:
         info("erase_type is yaffs2")
