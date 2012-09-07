@@ -169,7 +169,7 @@ def usb_img_dl_main():
         wtf("unable to open device.")
 
     ################# burn ram loader ################
-    if configs.ram_loader_need_update or 'R' in options.burn_list:
+    if configs.ram_loader_need_update or options.burn_list and 'R' in options.burn_list:
         info("Updating Ram Loader")
         set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
         ram_loader_path = os.path.join(INTERGRATED_BIN_DIR, 
