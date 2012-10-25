@@ -28,7 +28,7 @@ def usb_erase_dyn_id(sg_fd, dyn_id):
     write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
 
 
-def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2 = False):
+def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     if is_yaffs2:
         info("erase_type is yaffs2")
         buf = '\x01'
@@ -58,7 +58,7 @@ def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2 = Fal
 
 def usb_erase_whole_nand_flash(sg_fd):
     usb_erase_generic(sg_fd, mtd_part_alloc.IM9828_NAND_OFFSET,
-            mtd_part_alloc.IM9828_NAND_LENGTH)
+            mtd_part_alloc.IM9828_NAND_LENGTH, False)
 
 
 if __name__ == "__main__":
