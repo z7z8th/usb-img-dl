@@ -60,9 +60,8 @@ def update_type_call_dict():
                 'img_type':'ram_loader', 'func_params':ID_LDR_APP},
         }
 
-####### update call dict ######
+####### update call dict for msg header, need to be call again later for mtd alloc ######
 update_type_call_dict()
-
 
 USAGE_MSG_HEADER = "usage: %prog <options> <args> [path/to/img...]\n" \
 "available partition/img type list are:\n"
@@ -124,7 +123,10 @@ def usb_img_dl_main():
         mtd_part_alloc.use_bsp13_allocation()
     else:
         wtf("allocation must be specified: -1 for bsp12, -2 for bsp13")
-    #print_allocation()
+    #mtd_part_alloc.print_allocation()
+
+    ####### update call dict ######
+    update_type_call_dict()
 
     ################ check dump/erase/burn types ################
     type_call_keys = set(type_call_dict.keys())
