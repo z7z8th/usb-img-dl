@@ -15,11 +15,13 @@ from usb_erase import *
 
 def usb_burn_ram_loader(sg_fd, img_buf):
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector of course
-    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
     try:
+        write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
         write_blocks(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
     except OSError as e:
-        dbg(e)
+        warn(e)
+    except SCSIError as e:
+        warn(e)
         pass
 
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
@@ -33,7 +35,7 @@ def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
 def usb_burn_raw(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     sector_offset = mtd_part_start_addr / SECTOR_SIZE
     # erase first
-    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size)
+    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, False)
     # start write img
     write_large_buf(sg_fd, img_buf, sector_offset)
 
