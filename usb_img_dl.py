@@ -4,6 +4,7 @@ import mmap
 import os
 import re
 from optparse import OptionParser
+import fcntl
 
 import configs
 import configs
@@ -122,8 +123,7 @@ def usb_img_dl_main():
         info("use bsp13_alloc")
         mtd_part_alloc.use_bsp13_allocation()
     else:
-        warn("use default alloc: bsp13")
-        mtd_part_alloc.use_bsp13_allocation()
+        wtf("allocation must be specified: -1 for bsp12, -2 for bsp13")
     #print_allocation()
 
     ################ check dump/erase/burn types ################
@@ -162,6 +162,12 @@ def usb_img_dl_main():
             sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
     else:
         sg_fd = wait_and_get_im_sg_fd()
+
+    try:
+        fcntl.flock(sg_fd, fcntl.LOCK_EX)
+    except IOError as e:
+        err(e)
+        wtf(os.strerror(os.errno))
 
     time.sleep(0.5)
 
@@ -207,10 +213,10 @@ def usb_img_dl_main():
                 usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
             elif type_call_dict[e]['img_type'] == 'raw':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_raw(sg_fd, erase_offset, erase_length)
+                usb_erase_generic(sg_fd, erase_offset, erase_length, is_yaffs2=False)
             elif type_call_dict[e]['img_type'] == 'yaffs2':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_yaffs2(sg_fd, erase_offset, erase_length)
+                usb_erase_generic(sg_fd, erase_offset, erase_length, is_yaffs2=True)
             else:
                 wtf("unknown img type")
             info("\n;-) erase %s succeed!" % erase_desc)
