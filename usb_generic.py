@@ -96,7 +96,10 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
         warn(get_cur_func_name()+"(): SCSIError:", e)
     #except OSError as e:
     #    warn(get_cur_func_name()+"(): OSError: ", e)
-    time.sleep(0.005)
+
+    # sleep for yaffs2 tragedy, I think it's not need
+    # the tragedy should be caused by multi process access
+    #time.sleep(0.005)
     return ret
 
 
