@@ -15,7 +15,7 @@ INQUIRY_DATA_LEN = 0xFF
 def inquiry_sg_dev_info(sg_fd):
     cmd = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     try:
-        inquiry_buf = sg_read(sg_fd, cmd, INQUIRY_DATA_LEN, 200)
+        inquiry_buf = sg_read(sg_fd, cmd, INQUIRY_DATA_LEN, 800)
     except SCSIError as e:
         #warn("SCSIError: ", e)
         return None
@@ -45,7 +45,7 @@ READ_CAPACITY = 0x25
 def get_dev_block_info(sg_fd):
     cmd = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
     try:
-        read_buf = sg_read(sg_fd, cmd, 8, 200)
+        read_buf = sg_read(sg_fd, cmd, 8, 800)
     except SCSIError as e:
         warn("SCSIError: ", e)
         return (None, None)
@@ -70,7 +70,7 @@ def read_blocks(sg_fd, sector_offset, sector_num):
     cmd += NULL_CHAR
 
     try:
-        read_buf = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 200 )
+        read_buf = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 800 )
     except SCSIError as e:
         warn(get_cur_func_name()+"(): SCSIError: ", e)
         return None
@@ -96,6 +96,7 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
         warn(get_cur_func_name()+"(): SCSIError:", e)
     #except OSError as e:
     #    warn(get_cur_func_name()+"(): OSError: ", e)
+    time.sleep(0.005)
     return ret
 
 
