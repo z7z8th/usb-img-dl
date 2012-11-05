@@ -168,8 +168,10 @@ def usb_img_dl_main():
     try:
         fcntl.flock(sg_fd, fcntl.LOCK_EX)
     except IOError as e:
+        os_errno = os.errno
         err(e)
-        wtf(os.strerror(os.errno))
+        wtf(os.strerror(os_errno))
+
 
     time.sleep(0.5)
 
