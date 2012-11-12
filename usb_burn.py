@@ -5,6 +5,7 @@ import sys
 import struct
 import time
 import array
+from progress.bar import IncrementalBar
 
 from const_vars import *
 from debug_utils import *
@@ -47,7 +48,7 @@ def parse_yaffs2_header(header_buf):
     yaffs2_byte_per_chunk = str_to_int32_le(header_buf[8:12])
     yaffs2_byte_nand_spare = str_to_int32_le(header_buf[12:16])
 
-    dbg("yaffs2_image_header: head_id=%d, version=%d, "\
+    dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
             "chunk_size=%d, spare_size=%d" % \
             (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
                 yaffs2_byte_nand_spare))
@@ -65,7 +66,7 @@ def parse_yaffs2_header(header_buf):
         size_nand_spare = YAFFS2_SPARESIZE_2K
         header_size = struct.calcsize(header_struct_fmt)
     else:
-        dbg("yaffs2 version is none")
+        dbg("Yaffs2 version is none")
         # im9828 v1/v3 uses 2KB size page and 64B size spare
         size_nand_page = YAFFS2_CHUNKSIZE_2K
         size_nand_spare = YAFFS2_SPARESIZE_2K
@@ -89,7 +90,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, True)
 
     # write yaffs2
-    info("start to write yaffs2")
+    dbg("Start to write yaffs2")
 
     size_written, size_nand_page, size_nand_spare = \
             parse_yaffs2_header(img_buf[:SIZE_YAFFS2_HEADER])
@@ -103,6 +104,10 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     size_spare_per_nand_block = size_nand_spare*pair_cnt_per_nand_block
     size_per_nand_block = size_page_per_nand_block + size_spare_per_nand_block
     assert(isinstance(size_per_nand_block, int))
+
+    progressBar = IncrementalBar('Burning', 
+            max = max(1, img_total_size/size_per_nand_block),
+            suffix='%(percent)d%%')
 
     page_buf = array.array('c', NULL_CHAR * size_page_per_nand_block)
     spare_buf = array.array('c', NULL_CHAR * size_spare_per_nand_block)
@@ -133,22 +138,21 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
 
         page_buf_fill_cnt = pair_cnt * size_nand_page
         spare_buf_fill_cnt = pair_cnt * size_nand_spare
-        page_buf[page_buf_fill_cnt:] = array.array('c', NULL_CHAR * (size_page_per_nand_block - page_buf_fill_cnt))
-        spare_buf[spare_buf_fill_cnt:] = array.array('c', NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt))
+        page_buf[page_buf_fill_cnt:] = array.array('c', 
+                NULL_CHAR * (size_page_per_nand_block - page_buf_fill_cnt))
+        spare_buf[spare_buf_fill_cnt:] = array.array('c', 
+                NULL_CHAR * (size_spare_per_nand_block - spare_buf_fill_cnt))
 
         # do write to disk
-        sys.stdout.write('.')
-        #sys.stdout.flush()
-
         if is_last_block:
-            dbg("write spare_buf, size=0x%x" % (size_nand_spare * pair_cnt))
+            dbg("Write spare_buf, size=0x%x" % (size_nand_spare * pair_cnt))
         # dbg("write spare_buf")
         write_blocks(sg_fd, spare_buf,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_block / SECTOR_SIZE)
         if is_last_block:
-            dbg("write page_buf, size=0x%x" % (size_nand_page * pair_cnt))
-        sys.stdout.flush()
+            dbg("Write page_buf, size=0x%x" % (size_nand_page * pair_cnt))
+        #sys.stdout.flush()
         # dbg("write page_buf")
         #write_blocks(sg_fd, page_buf, sector_offset, 
         #        (pair_cnt * size_nand_page) / SECTOR_SIZE)
@@ -157,8 +161,11 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
 
-    print()
-    dbg("write yaffs2 to nand finished")
+        if not configs.debug:
+            progressBar.next()
+
+    progressBar.finish()
+    dbg("Write yaffs2 to nand finished")
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)
     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)

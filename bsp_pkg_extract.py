@@ -32,9 +32,9 @@ def bsp_pkg_extract(pkg_path, dest_dir):
     ret = False
     pkg_fd = open(pkg_path, 'rb')
     if pkg_fd:
-        info("open bsp package succeed: %s" % pkg_path)
+        info("Open bsp package succeed: %s" % pkg_path)
     else:
-        wtf("open bsp package failed: %s" % pkg_path)
+        wtf("Open bsp package failed: %s" % pkg_path)
     position = 0
     pkg_fd.seek(position, os.SEEK_SET)
     magic_name = pkg_fd.read(16)
@@ -70,9 +70,9 @@ def bsp_pkg_extract(pkg_path, dest_dir):
             # copy the img from bsp pkg to file
             img_file_name = img_type_dict[img_type][4:].lower() + ".img"
             img_file_path = os.path.join(dest_dir, img_file_name)
-            info("output img to: " + img_file_path)
+            info("Output img to: " + img_file_path)
             if os.path.exists(img_file_path):
-                warn("overwrite img: " + img_file_path)
+                warn("Overwrite img: " + img_file_path)
             img_fd = open(img_file_path, 'wb')
             copy_img_from_pkg(pkg_fd, img_fd, img_size)
             img_fd.close()
@@ -97,5 +97,5 @@ if __name__ == '__main__':
     if len(sys.argv) != 3 or \
             not os.path.exists(sys.argv[1]) or \
             not os.path.exists(sys.argv[2]):
-        wtf("usage: %s /path/to/bsp-package /dir/to/extract" % sys.argv[0])
+        wtf("Usage: %s /path/to/bsp-package /dir/to/extract" % sys.argv[0])
     bsp_pkg_extract(sys.argv[1], sys.argv[2])

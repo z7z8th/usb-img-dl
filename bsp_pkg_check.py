@@ -11,9 +11,9 @@ def bsp_pkg_check(pkg_path):
     ret = False
     pkg_fd = open(pkg_path, 'rb')
     if pkg_fd:
-        info("open bsp package succeed: %s" % pkg_path)
+        info("Open bsp package succeed: %s" % pkg_path)
     else:
-        wtf("open bsp package failed: %s" % pkg_path)
+        wtf("Open bsp package failed: %s" % pkg_path)
     position = 0
     pkg_fd.seek(position, os.SEEK_SET)
     magic_name = pkg_fd.read(16)
@@ -69,6 +69,6 @@ if __name__ == '__main__':
     import sys
     if len(sys.argv) != 2 or \
             not os.path.exists(sys.argv[1]):
-        wtf("usage: %s BSP_Package_path" % sys.argv[0])
+        wtf("Usage: %s BSP_Package_path" % sys.argv[0])
     ret, img_pos_in_pkg = bsp_pkg_check(sys.argv[1])
     print ret, img_pos_in_pkg

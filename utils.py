@@ -3,7 +3,7 @@ from debug_utils import *
 
 def int32_to_str(i32):
     if not ( isinstance(i32, int) or isinstance(i32, long)):
-        wtf("need a int32 parameter")
+        wtf("Need a int32 parameter")
     buf = chr((i32 >> 24) & 0xFF)
     buf += chr((i32 >> 16) & 0xFF)
     buf += chr((i32 >> 8) & 0xFF)
@@ -13,7 +13,7 @@ def int32_to_str(i32):
 
 def str_to_int32_le(str_4bytes):
     if not isinstance(str_4bytes, str) or not len(str_4bytes) == 4:
-        wtf("need a str of 4 bytes length")
+        wtf("Need a str of 4 bytes length")
     i32 = ord(str_4bytes[3])<<24 | ord(str_4bytes[2])<<16 | \
             ord(str_4bytes[1]) << 8 | ord(str_4bytes[0])
     return i32
@@ -21,7 +21,7 @@ def str_to_int32_le(str_4bytes):
 
 def str_to_int32_be(str_4bytes):
     if not isinstance(str_4bytes, str) or not len(str_4bytes) == 4:
-        wtf("need a str of 4 bytes length")
+        wtf("Need a str of 4 bytes length")
     i32 = ord(str_4bytes[0])<<24 | ord(str_4bytes[1])<<16 | \
             ord(str_4bytes[2]) << 8 | ord(str_4bytes[3])
     return i32
@@ -47,4 +47,4 @@ if __name__ == "__main__":
     assert(cmp_version([1,1,6], [1,2,4]) == -1)
     assert(cmp_version([2,1,6], [1,2,4]) == 1)
     assert(cmp_version([2,4,6], [1,2,4]) == 1)
-    info("test for cmp_version passed")
+    info("Test for cmp_version passed")

@@ -3,21 +3,21 @@ from debug_utils import *
 from usb_generic import *
 
 def set_dl_img_type(sg_fd, dl_img_type, mtd_part_start_addr):
-    dbg("start of "+get_cur_func_name())
+    dbg("Start of "+get_cur_func_name())
     buf = chr(dl_img_type) + NULL_CHAR * (SECTOR_SIZE - 1)
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_DEVICE, 1)
     if not ret:
-        wtf("fail to set download img type")
+        wtf("Fail to set download img type")
     buf = int32_to_str(mtd_part_start_addr)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_ADDR, 1)
     if not ret:
-        wtf("fail to set download img addr")
-    dbg("end of "+get_cur_func_name())
+        wtf("Fail to set download img addr")
+    dbg("End of "+get_cur_func_name())
 
 
 def usb_wr_bb_reg(sg_fd, addr, value):
-    dbg("start of "+get_cur_func_name())
+    dbg("Start of "+get_cur_func_name())
     assert_number(sg_fd)
     assert_number(addr)
     assert_number(value)
@@ -28,17 +28,17 @@ def usb_wr_bb_reg(sg_fd, addr, value):
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_WR_BB_REG, 1)
     if not ret:
         time.sleep(0.100)
-    dbg("end of "+get_cur_func_name())
+    dbg("End of "+get_cur_func_name())
 
 
 def usb_dl_start(sg_fd):
-    dbg("start of "+get_cur_func_name())
+    dbg("Start of "+get_cur_func_name())
     # turn off LCM backlight
     #usb_wr_bb_reg(sg_fd, 0xf8001020, 0x1ff)
     # turn off LED backlight
     usb_wr_bb_reg(sg_fd, 0xf8002184, 0x3)
     usb_wr_bb_reg(sg_fd, 0xf80021A4, 0xff)
-    dbg("end of "+get_cur_func_name())
+    dbg("End of "+get_cur_func_name())
 
 
 def usb_dl_end(sg_fd):

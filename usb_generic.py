@@ -4,6 +4,7 @@ import time
 from py_sg import write as sg_write
 from py_sg import read as sg_read
 from py_sg import SCSIError
+from progress.bar import IncrementalBar
 
 import configs
 from const_vars import *
@@ -103,11 +104,15 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
     return ret
 
 
-def write_large_buf(sg_fd, large_buf, sector_offset, size_per_write = SIZE_PER_WRITE):
+def write_large_buf(sg_fd, large_buf, sector_offset,
+        size_per_write = SIZE_PER_WRITE):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
     dbg(get_cur_func_name(), "(): total sector num=",
             (float(img_total_size)/SECTOR_SIZE))
+    progressBar = IncrementalBar('Burning',
+            max = max(1, len(large_buf)/size_per_write),
+            suffix='%(percent)d%%')
     size_written = 0
     while size_written < img_total_size:
         buf_end_offset = min(img_total_size, size_written + size_per_write)
@@ -120,7 +125,10 @@ def write_large_buf(sg_fd, large_buf, sector_offset, size_per_write = SIZE_PER_W
         write_blocks(sg_fd, buf, sector_offset, sector_num_write)
         size_written += size_per_write
         sector_offset += sector_num_write
-    dbg("end of " + get_cur_func_name())
+        if not configs.debug:
+            progressBar.next()
+    progressBar.finish()
+    dbg("End of " + get_cur_func_name())
 
 
 if __name__ == "__main__":
@@ -132,6 +140,4 @@ if __name__ == "__main__":
     inquiry_sg_dev_info(sg_fd)
     print(get_dev_block_info(sg_fd))
     os.close(sg_fd)
-
-
 

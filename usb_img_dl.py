@@ -63,66 +63,66 @@ def update_type_call_dict():
 ####### update call dict for msg header, need to be call again later for mtd alloc ######
 update_type_call_dict()
 
-USAGE_MSG_HEADER = "usage: %prog <options> <args> [path/to/img...]\n" \
-"available partition/img type list are:\n"
+USAGE_MSG_HEADER = "Usage: %prog <options> <args> [path/to/img...]\n" \
+"Available partition/img type list are:\n"
 for type in 'bBrsmcuMidR':
     USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type]['std_name'])
-USAGE_MSG_HEADER += "\nif you specify more than one of dump/erase/burn,\n" \
+USAGE_MSG_HEADER += "\nIf you specify more than one of dump/erase/burn,\n" \
         "dump will go first, then erase, then burn.\n"\
-        "burn will always be the last action"
+        "Burn will always be the last action"
 
 
 def parse_options():
     parser = OptionParser(USAGE_MSG_HEADER)
     parser.add_option("-1", "--bsp12", action="store_true", dest="bsp12_alloc",
-            help="the 1st alloc type, for bsp12")
+            help="The 1st alloc type, for bsp12")
     parser.add_option("-2", "--bsp13", action="store_true", dest="bsp13_alloc",
-            help="the 2nd alloc type, for bsp13")
+            help="The 2nd alloc type, for bsp13")
     parser.add_option("-b", "--burn", type="string", dest="burn_list", \
             metavar="IMG_PATTERN",
-            help="burn img to board: %metavar is a combination of partition/img" \
+            help="Burn img to board: %metavar is a combination of partition/img" \
                  "i.e.: '-b Bsu' means to burn Boot,System,UserData to board")
     parser.add_option("-e", "--erase", type="string", dest="erase_list", \
             metavar="PART_PATTERN",
-            help="erase nand partitions: %metavar is a combination of partition/img" \
+            help="Erase nand partitions: %metavar is a combination of partition/img" \
                  "i.e.: '-e Bsu' means to erase Boot,System,UserData of board")
     parser.add_option("-d", "--dump", type="string", dest="dump_list", \
             metavar="PART_PATTERN",
-            help="dump nand partitions: %metavar is a combination of partition/img" \
+            help="<Not implemented yet!> Dump nand partitions: %metavar is a combination of partition/img" \
                  "i.e.: '-d Bsu' means to dump Boot,System,UserData to file" \
                  "the partition will dump to file with pattern: " \
                  "<PART_TYPE>.img-dumped-<TIME>")
     parser.add_option("-A", "--erase-all", action="store_true", dest="erase_all",
-            help="erase the whole nand flash")
+            help="Erase the whole nand flash")
     parser.add_option("-i", "--disk-path", type="string", dest="sg_path",
-            help="the path to the flash disk, i.e. /dev/sg4 . when use this option, "\
+            help="The path to the flash disk, i.e. /dev/sg4 . When use this option, "\
                     "the device must already in download mode")
     parser.add_option("-y", "--yes", action="store_true", dest="yes_to_all",
-            help="say yes to all additional confirmation")
+            help="Say yes to all additional confirmation. <Currently not used!>")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
-            help="output verbose information for debug")
+            help="Output verbose information for debug")
     return parser.parse_args()
 
 
 def usb_img_dl_main():
     options, args = parse_options()
     img_paths = args
-    dbg("options: ", options)
-    dbg("args: ", args)
+    dbg("Options: ", options)
+    dbg("Args: ", args)
 
     configs.debug = True if options.verbose else False
 
     ################ update mtd partition allocation ################
     if options.bsp12_alloc and options.bsp13_alloc:
-        wtf("only one type of alloc can be specified")
+        wtf("Only one type of alloc can be specified")
     if options.bsp12_alloc:
-        info("use bsp12_alloc")
+        info("Use BSP12 Allocation")
         mtd_part_alloc.use_bsp12_allocation()
     elif options.bsp13_alloc:
-        info("use bsp13_alloc")
+        info("Use BSP13 Allocation")
         mtd_part_alloc.use_bsp13_allocation()
     else:
-        wtf("allocation must be specified: -1 for bsp12, -2 for bsp13")
+        wtf("Allocation must be specified: -1 for BSP12, -2 for BSP13")
     #mtd_part_alloc.print_allocation()
 
     ####### update call dict ######
@@ -139,10 +139,10 @@ def usb_img_dl_main():
                     % (str(list(s)), str(list(s - type_call_keys))))
 
     if options.burn_list and len(options.burn_list) != len(burn_list):
-        wtf("you have specified duplicated value for --burn")
+        wtf("You have specified duplicated value for --burn")
     if options.burn_list and len(options.burn_list) != len(args):
-        wtf("you ask to burn %d imgs, but %d path/to/imgs specified." \
-              " their count should equal" % (len(options.burn_list), len(args)) )
+        wtf("You ask to burn %d imgs, but %d path/to/imgs specified." \
+              " Their count should equal" % (len(options.burn_list), len(args)) )
 
 
     ################ check img file path ################
@@ -189,12 +189,12 @@ def usb_img_dl_main():
             ram_loader_path = img_paths[idx]
             options.burn_list = options.burn_list.replace('R', '', 1)
             img_paths.remove(img_paths[idx])
-        info("burn ram_loader:", ram_loader_path)
+        info("Burn ram_loader:", ram_loader_path)
         with open(ram_loader_path, 'rb') as img_fd:
             img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
             usb_burn_ram_loader(sg_fd, img_buf)
             img_buf.close()
-        info("burn ram_loader succeed")
+        info("Burn ram_loader succeed")
 
     usb2_start(sg_fd)
 
@@ -202,6 +202,7 @@ def usb_img_dl_main():
     for d in dump_list:
         dumped_path = type_call_dict[d]['std_name']+".img-dumped-"+ \
                 time.strftime("%Y%m%d_%H%M%S", time.localtime())
+        info('='*80)
         info("dump "+type_call_dict[d]['std_name']+" -> "+dumped_path)
 
     ################ erase ################
@@ -212,7 +213,8 @@ def usb_img_dl_main():
         for e in erase_list:
             erase_desc = type_call_dict[e]['std_name']
             erase_type = type_call_dict[e]['img_type']
-            info("erase " + erase_desc)
+            info('='*80)
+            info("Erase " + erase_desc)
             if erase_type == 'dyn_id':
                 usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
             elif type_call_dict[e]['img_type'] == 'raw':
@@ -222,18 +224,19 @@ def usb_img_dl_main():
                 erase_offset, erase_length = type_call_dict[e]['func_params']
                 usb_erase_generic(sg_fd, erase_offset, erase_length, is_yaffs2=True)
             else:
-                wtf("unknown img type")
-            info("\n;-) erase %s succeed!" % erase_desc)
+                wtf("Unknown img type")
+            info("\n;-) Erase %s succeed!" % erase_desc)
 
     ################ burn ################
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
-            info('-'*80)
-            info("burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
+            info('='*80)
+            info("Burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
 
             if not re.search(type_call_dict[b]['name_pattern'],
                     os.path.basename(img_paths[i]).lower()):
-                wtf("img file pattern not match, you maybe burning the wrong img")
+                wtf("Image file name pattern not match, you maybe burning the wrong img. file name pattern should be:",
+                        type_call_dict[b]['name_pattern'])
 
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
@@ -253,9 +256,9 @@ def usb_img_dl_main():
                 elif type_call_dict[b]['img_type'] == 'ram_loader':
                     pass
                 else:
-                    wtf("unknown img type")
+                    wtf("Unknown img type")
 
-                info("\n;-) burn %s succeed!\n" % burn_desc)
+                info("\n;-) Burn %s succeed!\n" % burn_desc)
                 img_buf.close()
 
     usb2_end(sg_fd)

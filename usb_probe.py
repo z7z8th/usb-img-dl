@@ -5,6 +5,7 @@ import sys
 import time
 import glob
 import binascii
+from progress.spinner import Spinner
 
 import configs
 import configs
@@ -81,13 +82,13 @@ def get_flash_type(sg_fd, cmd_sector_base):
             cmd_sector_base + USB_PROGRAMMER_GET_DEV_TYPE_OFFSET, 1)
     if ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NAND:
         ucDevType = FLASH_DEV_TYPE_IS_NAND
-        dbg("dev type is nand flash")
+        dbg("Dev type is nand flash")
     elif ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NOR:
         ucDevType = FLASH_DEV_TYPE_IS_NOR
-        dbg("dev type is nor flash")
+        dbg("Dev type is nor flash")
     else:
         ucDevType = 0x00
-        warn("dev type is not recognized")
+        warn("Dev type is not recognized")
     return ucDevType
 
 
@@ -104,9 +105,9 @@ def get_im_sg_fd():
         try:
             sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
             if sg_fd < 0:
-                dbg("open sg dev failed. sg_fd=", sg_fd)
+                dbg("Open sg dev failed. sg_fd=", sg_fd)
                 continue
-            dbg("\nchecking: ", sg_path)
+            dbg("\nChecking: ", sg_path)
 
             ( periheral_qualifer, periheral_dev_type, 
                     t10_vendor_ident, product_ident ) = \
@@ -117,11 +118,12 @@ def get_im_sg_fd():
                     not product_ident.startswith('Flash Disk'):
                         dbg("not Infomax Flash Disk, skip")
                         continue
-            info("sg dev info match")
+            print()
+            info("Sg dev info match")
 
             lastblock, block_size = get_dev_block_info(sg_fd)
             if block_size and block_size != SECTOR_SIZE:
-                warn("unable to handle block_size=%d, must be %d" \
+                warn("Unable to handle block_size=%d, must be %d" \
                         % (block_size, SECTOR_SIZE))
                 continue
             if not lastblock:
@@ -131,24 +133,24 @@ def get_im_sg_fd():
             cmd_sector_base = lastblock - COMMAND_AREA_SIZE
             ret = check_magic_str(sg_fd, cmd_sector_base)
             if ret: 
-                info("magic string match")
+                info("Magic string match")
             else:
-                warn("magic string not match, this is ok to ignore")
+                warn("Magic string not match, this is ok to ignore")
                 continue
 
             check_ram_loader_version(sg_fd, cmd_sector_base)
 
             ret = change_to_dl_mode(sg_fd)
             if ret:
-                info("change device to download mode succeed")
+                info("Change device to download mode succeed")
             else:
-                wtf("change device to download mode failed")
+                wtf("Change device to download mode failed")
 
             ret = get_flash_type(sg_fd, cmd_sector_base)
             if ret:
-                info("get flash type succeed")
+                info("Get flash type succeed")
             else:
-                warn("get flash type failed, maybe this is a bug")
+                warn("Get flash type failed, maybe this is a bug")
                 continue
             return sg_fd
         except EnvironmentError as e:
@@ -160,16 +162,15 @@ def get_im_sg_fd():
     return None
 
 def wait_and_get_im_sg_fd():
-    info("waiting for device to appear")
+    #info("waiting for device to appear")
+    progressBar = Spinner("Waiting for device: ")
     while True:
         sg_fd = get_im_sg_fd()
         if sg_fd:
-            print()
-            sys.stdout.flush()
+            progressBar.finish()
             return sg_fd
         time.sleep(0.5)
-        print('.', sep='', end='')
-        sys.stdout.flush()
+        progressBar.next()
 
 
 
