@@ -5,25 +5,46 @@ import sys
 import struct
 import time
 import array
+import mmap
+import copy
+import subprocess
 from progress.bar import IncrementalBar
 
 from const_vars import *
 from debug_utils import *
 from utils import *
 import mtd_part_alloc
+from py_sg import SCSIError
 from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
 from usb_erase import *
 
-def usb_burn_ram_loader(sg_fd, img_buf):
-    RAMLOADER_SECTOR_OFFSET = 0   # the first sector of course
+
+
+def usb_burn_ram_loader_to_ram(sg_fd, img_buf):
+    dbg("enter: ", get_cur_func_name())
+    sys.stdout.flush()
+    RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
+    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
     try:
-        write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
         write_blocks(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
-    except OSError as e:
-        warn(e)
     except SCSIError as e:
-        warn(e)
+        #warn("SCSIError", e)
         pass
+    info("Wait for new ram_loader to take affect")
+    # time.sleep(2)
+    subprocess.Popen(sys.argv, close_fds = True)
+    sys.exit(0)
+
+
+def usb_burn_ram_loader_file_to_ram(sg_fd, loader_path):
+    dbg("enter: ", get_cur_func_name())
+    if not os.path.exists(loader_path):
+        wtf("No such file: ", loader_path)
+    with open(loader_path, 'rb') as img_fd:
+        img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+        usb_burn_ram_loader_to_ram(sg_fd, img_buf)
+        img_buf.close()
+
 
 def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
     # erase and set nand partition info

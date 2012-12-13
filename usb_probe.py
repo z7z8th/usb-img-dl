@@ -8,11 +8,12 @@ import binascii
 from progress.spinner import Spinner
 
 import configs
-import configs
 from const_vars import *
 from debug_utils import *
 from utils import *
 from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
+from usb_misc import set_dl_img_type
+from usb_burn import usb_burn_ram_loader_file_to_ram
 
 ram_loader_major_version = 0
 ram_loader_minor_version = 0
@@ -53,9 +54,12 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
     configs.blOneStageReady = False
     if ord(version_sector[8]) == 1:
-        dbg("ROM Type: %s" % version_sector[9:11])
+        info("ROM Type: %s" % version_sector[9:11])
     if ord(version_sector[8]) == 2:
-        dbg("Flash Type: %s" % version_sector[9:11])
+        info("Flash Type: %s" % version_sector[9:11])
+        warn("Ram Loader not found. Burn it now!")
+        set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
+        usb_burn_ram_loader_file_to_ram(sg_fd, configs.ram_loader_path)
     if ord(version_sector[8]) == 3:
         ram_loader_major_version = int(version_sector[9:11])
         ram_loader_minor_version = int(version_sector[12:14])
@@ -68,7 +72,7 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
         if cmp_version(ram_loader_versions, 
                 configs.ram_loader_min_versions) < 0:
             configs.ram_loader_need_update = True
-            warn("Ram Loader is too old, will update!")
+            warn("Ram Loader is too old, Please update!")
         elif cmp_version(ram_loader_versions, 
                 configs.ram_loader_integrated_versions) < 0:
             configs.ram_loader_need_update = False

@@ -2,6 +2,7 @@
 import time
 import mmap
 import os
+import sys
 import re
 from optparse import OptionParser
 import fcntl
@@ -14,6 +15,8 @@ import mtd_part_alloc
 from usb_probe import wait_and_get_im_sg_fd
 from usb_misc import *
 from usb_burn import *
+
+
 
 type_call_dict = {}
 
@@ -57,7 +60,7 @@ def update_type_call_dict():
                 'img_type':'dyn_id', 'func_params':ID_BAREBOX_ENV},
 
         'R': {'std_name':'ram-loader', 'name_pattern':r'ram_ldr|ldr_app|ram_loader',
-                'img_type':'ram_loader', 'func_params':ID_LDR_APP},
+                'img_type':'dyn_id', 'func_params':ID_LDR_APP},
         }
 
 ####### update call dict for msg header, need to be call again later for mtd alloc ######
@@ -111,6 +114,9 @@ def usb_img_dl_main():
     dbg("Args: ", args)
 
     configs.debug = True if options.verbose else False
+
+    dbg("sys.argv:", sys.argv)
+    dbg("ram_loader path:", configs.ram_loader_path)
 
     ################ update mtd partition allocation ################
     if options.bsp12_alloc and options.bsp13_alloc:
@@ -180,21 +186,10 @@ def usb_img_dl_main():
 
     ################# burn ram loader ################
     if configs.ram_loader_need_update or options.burn_list and 'R' in options.burn_list:
-        info("Updating Ram Loader")
-        set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-        ram_loader_path = os.path.join(INTERGRATED_BIN_DIR, 
-                configs.INTERGRATED_RAM_LOADER_NAME)
+        info("Will updating Ram Loader")
         if 'R' in options.burn_list:
             idx = options.burn_list.index('R')
-            ram_loader_path = img_paths[idx]
-            options.burn_list = options.burn_list.replace('R', '', 1)
-            img_paths.remove(img_paths[idx])
-        info("Burn ram_loader:", ram_loader_path)
-        with open(ram_loader_path, 'rb') as img_fd:
-            img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-            usb_burn_ram_loader(sg_fd, img_buf)
-            img_buf.close()
-        info("Burn ram_loader succeed")
+            configs.ram_loader_path = img_paths[idx]
 
     usb2_start(sg_fd)
 
@@ -208,6 +203,7 @@ def usb_img_dl_main():
     ################ erase ################
     assert(not (options.erase_all and len(erase_list)>0))
     if options.erase_all:
+        info("Erase whole nand Flash!")
         usb_erase_whole_nand_flash(sg_fd)
     else:
         for e in erase_list:
@@ -235,7 +231,9 @@ def usb_img_dl_main():
 
             if not re.search(type_call_dict[b]['name_pattern'],
                     os.path.basename(img_paths[i]).lower()):
-                wtf("Image file name pattern not match, you maybe burning the wrong img. file name pattern should be:",
+                wtf("Image file name pattern not match,",
+                        " you maybe burning the wrong img.",
+                        " file name pattern should be:",
                         type_call_dict[b]['name_pattern'])
 
             with open(img_paths[i], 'rb') as img_fd:
@@ -253,8 +251,6 @@ def usb_img_dl_main():
                 elif type_call_dict[b]['img_type'] == 'yaffs2':
                     burn_offset, burn_lenght = type_call_dict[b]['func_params']
                     usb_burn_yaffs2(sg_fd, img_buf, burn_offset, burn_lenght)
-                elif type_call_dict[b]['img_type'] == 'ram_loader':
-                    pass
                 else:
                     wtf("Unknown img type")
 
@@ -263,6 +259,7 @@ def usb_img_dl_main():
 
     usb2_end(sg_fd)
     os.close(sg_fd)
+    warn("\nAll operations Completed!\n")
 
 
 if __name__ == "__main__":

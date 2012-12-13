@@ -36,6 +36,7 @@ def usb_erase_dyn_id(sg_fd, dyn_id):
     if not configs.debug:
         progressBar.next()
     progressBar.finish()
+    dbg("erase dyn id finished")
 
 
 def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
