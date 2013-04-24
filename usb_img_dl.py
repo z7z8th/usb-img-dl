@@ -49,6 +49,10 @@ def update_type_call_dict():
                 'img_type':'yaffs2',  'func_params':(mtd_part_alloc.UDATA_OFFSET,
                                             mtd_part_alloc.UDATA_LENGTH)},
 
+        'C': {'std_name':'cache',         'name_pattern':r'cache',
+                'img_type':'raw',  'func_params':(mtd_part_alloc.CACHE_OFFSET,
+                                            mtd_part_alloc.CACHE_LENGTH)},
+
         'M': {'std_name':'machine-data',  'name_pattern':r'mdata|macine-data',
                 'img_type':'yaffs2',  'func_params':(mtd_part_alloc.MDATA_OFFSET,
                                             mtd_part_alloc.MDATA_LENGTH)},
