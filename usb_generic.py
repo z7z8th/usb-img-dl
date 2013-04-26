@@ -199,9 +199,8 @@ def write_large_buf(eps, large_buf, sector_offset,
     progressBar.finish()
     dbg("End of " + get_cur_func_name())
 
-def find_im_ldr_usb():
-    dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
 
+def get_usb_dev_eps(dev):
     info("find_im_ldr_usb: dev=", dev)
 
     # was it found?
@@ -244,6 +243,11 @@ def find_im_ldr_usb():
 
     assert eps_in is not None
     return [eps_out, eps_in]
+
+
+def find_im_ldr_usb():
+    dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
+    return get_usb_dev_eps(dev)
 
 
 if __name__ == "__main__":

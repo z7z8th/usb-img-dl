@@ -6,13 +6,16 @@ import sys
 import re
 from optparse import OptionParser
 import fcntl
+import thread
+import usb.core
+import signal
 
 import configs
 import configs
 from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
-from usb_generic import find_im_ldr_usb
+from usb_generic import get_usb_dev_eps
 from usb_probe import verify_im_ldr_usb
 from usb_misc import *
 from usb_burn import *
@@ -112,62 +115,13 @@ def parse_options():
     return parser.parse_args()
 
 
-def usb_img_dl_main():
-    options, args = parse_options()
-    img_paths = args
-    dbg("Options: ", options)
-    dbg("Args: ", args)
-
-    configs.debug = True if options.verbose else False
-
-    dbg("sys.argv:", sys.argv)
-    dbg("ram_loader path:", configs.ram_loader_path)
-
-    ################ update mtd partition allocation ################
-    if options.bsp12_alloc and options.bsp13_alloc:
-        wtf("Only one type of alloc can be specified")
-    if options.bsp12_alloc:
-        info("Use BSP12 Allocation")
-        mtd_part_alloc.use_bsp12_allocation()
-    elif options.bsp13_alloc:
-        info("Use BSP13 Allocation")
-        mtd_part_alloc.use_bsp13_allocation()
-    else:
-        wtf("Allocation must be specified: -1 for BSP12, -2 for BSP13")
-    #mtd_part_alloc.print_allocation()
-
-    ####### update call dict ######
-    update_type_call_dict()
-
-    ################ check dump/erase/burn types ################
-    type_call_keys = set(type_call_dict.keys())
-    burn_list  = set(options.burn_list)  if options.burn_list  else set()
-    erase_list = set(options.erase_list) if options.erase_list else set()
-    dump_list  = set(options.dump_list)  if options.dump_list  else set()
-    for s in [burn_list, erase_list, dump_list]:
-        if len(s) != len(s & type_call_keys):
-            wtf("%s contains invalid partition/img types: %s"
-                    % (str(list(s)), str(list(s - type_call_keys))))
-
-    if options.burn_list and len(options.burn_list) != len(burn_list):
-        wtf("You have specified duplicated value for --burn")
-    if options.burn_list and len(options.burn_list) != len(args):
-        wtf("You ask to burn %d imgs, but %d path/to/imgs specified." \
-              " Their count should equal" % (len(options.burn_list), len(args)) )
 
 
-    ################ check img file path ################
-    for p in img_paths:
-        if not os.path.isfile(p):
-            wtf(p + " isn't a file")
-
-    dbg("burn_list: ", list(burn_list))
-    dbg("erase_list: ", list(erase_list))
-    dbg("dump_list: ", list(dump_list))
-
-    ################ probe device ################
+def usb_dl_thread_func(dev, options, img_paths):
+    info("\n>>>>>>>>>>>>>>> new dl thread\n")
+    ################ get ep out/in of usb device ################
     eps = None
-    eps = find_im_ldr_usb()
+    eps = get_usb_dev_eps(dev)
     if eps is None:
         wtf("Unable to find bootloader.")
     verify_result = verify_im_ldr_usb(eps)
@@ -177,7 +131,8 @@ def usb_img_dl_main():
 
 
     ################# burn ram loader ################
-    if configs.ram_loader_need_update or options.burn_list and 'R' in options.burn_list:
+    if configs.ram_loader_need_update or options.burn_list \
+            and 'R' in options.burn_list:
         info("Will updating Ram Loader")
         if 'R' in options.burn_list:
             idx = options.burn_list.index('R')
@@ -186,19 +141,19 @@ def usb_img_dl_main():
     usb2_start(eps)
 
     ################# dump ################
-    for d in dump_list:
+    for d in options.dump_list:
         dumped_path = type_call_dict[d]['std_name']+".img-dumped-"+ \
                 time.strftime("%Y%m%d_%H%M%S", time.localtime())
         info('='*80)
         info("dump "+type_call_dict[d]['std_name']+" -> "+dumped_path)
 
     ################ erase ################
-    assert(not (options.erase_all and len(erase_list)>0))
+    assert(not (options.erase_all and len(options.erase_list)>0))
     if options.erase_all:
         info("Erase whole nand Flash!")
         usb_erase_whole_nand_flash(eps)
     else:
-        for e in erase_list:
+        for e in options.erase_list:
             erase_desc = type_call_dict[e]['std_name']
             erase_type = type_call_dict[e]['img_type']
             info('='*80)
@@ -252,6 +207,73 @@ def usb_img_dl_main():
     usb2_end(eps)
     
     warn("\nAll operations Completed!\n")
+
+
+def usb_img_dl_main():
+    options, args = parse_options()
+    img_paths = args
+    dbg("Options: ", options)
+    dbg("Args: ", args)
+
+    configs.debug = True if options.verbose else False
+
+    dbg("sys.argv:", sys.argv)
+    dbg("ram_loader path:", configs.ram_loader_path)
+
+    ################ update mtd partition allocation ################
+    if options.bsp12_alloc and options.bsp13_alloc:
+        wtf("Only one type of alloc can be specified")
+    if options.bsp12_alloc:
+        info("Use BSP12 Allocation")
+        mtd_part_alloc.use_bsp12_allocation()
+    elif options.bsp13_alloc:
+        info("Use BSP13 Allocation")
+        mtd_part_alloc.use_bsp13_allocation()
+    else:
+        wtf("Allocation must be specified: -1 for BSP12, -2 for BSP13")
+    #mtd_part_alloc.print_allocation()
+
+    ####### update call dict ######
+    update_type_call_dict()
+
+    ################ check dump/erase/burn types ################
+    options.burn_list = [] if options.burn_list is None else options.burn_list
+    options.erase_list = [] if options.erase_list is None else options.erase_list
+    options.dump_list = [] if options.dump_list is None else options.dump_list
+
+    type_call_keys = set(type_call_dict.keys())
+    burn_list  = set(options.burn_list)
+    erase_list = set(options.erase_list)
+    dump_list  = set(options.dump_list)
+    for s in [burn_list, erase_list, dump_list]:
+        if len(s) != len(s & type_call_keys):
+            wtf("%s contains invalid partition/img types: %s"
+                    % (str(list(s)), str(list(s - type_call_keys))))
+
+    if options.burn_list and len(options.burn_list) != len(burn_list):
+        wtf("You have specified duplicated value for --burn")
+    if options.burn_list and len(options.burn_list) != len(args):
+        wtf("You ask to burn %d imgs, but %d path/to/imgs specified." \
+              " Their count should equal" % (len(options.burn_list), len(args)) )
+
+    ################ check img file path ################
+    for p in img_paths:
+        if not os.path.isfile(p):
+            wtf(p + " isn't a file")
+
+    dbg("burn_list: ", list(burn_list))
+    dbg("erase_list: ", list(erase_list))
+    dbg("dump_list: ", list(dump_list))
+
+    ################ probe device ################
+    dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
+    for dev in dev_list:
+        dbg("~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~")
+        dbg(dev.__dict__)
+        thread.start_new_thread(usb_dl_thread_func, 
+                                 (dev, options, img_paths))
+    while True:
+        signal.pause()
 
 
 if __name__ == "__main__":
