@@ -11,7 +11,7 @@ import configs
 from const_vars import *
 from debug_utils import *
 from utils import *
-from usb_generic import inquiry_sg_dev_info, read_blocks, write_blocks, get_dev_block_info
+from usb_generic import inquiry_info, read_sectors, write_sectors, capacity_info, find_im_ldr_usb
 from usb_misc import set_dl_img_type
 from usb_burn import usb_burn_ram_loader_file_to_ram
 
@@ -19,12 +19,13 @@ ram_loader_major_version = 0
 ram_loader_minor_version = 0
 ram_loader_small_version = 0
 
-def check_magic_str(sg_fd, cmd_sector_base):
+def check_magic_str(eps, cmd_sector_base):
     #read magic hex, should be 0xdeadbeef
-    magic_block = read_blocks(sg_fd, \
+    magic_block = read_sectors(eps, \
             cmd_sector_base + USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET, 1)
     if not magic_block:
         return False
+    magic_block = magic_block.tostring()
     if configs.debug:
         dbg("MAGIC_WORD:", binascii.b2a_hex(magic_block[:4]))
     if magic_block[:4] != MAGIC_WORD:
@@ -33,7 +34,7 @@ def check_magic_str(sg_fd, cmd_sector_base):
         return False
     return True
 
-def change_to_dl_mode(sg_fd):
+def change_to_dl_mode(eps):
     to_two_byte_char = lambda x: chr(x / 10) + chr(x % 10)
     fill_sector = NULL_CHAR * 9
     fill_sector += to_two_byte_char(configs.usb_img_dl_major_version)
@@ -42,29 +43,29 @@ def change_to_dl_mode(sg_fd):
     fill_sector += NULL_CHAR
     fill_sector += to_two_byte_char(configs.usb_img_dl_small_version)
     fill_sector += NULL_CHAR * (512 - len(fill_sector))
-    ret = write_blocks(sg_fd, fill_sector, \
+    ret = write_sectors(eps, fill_sector, \
             USB_PROGRAMMER_DOWNLOAD_WRITE_LOADER_EXISTENCE, 1 )
     return ret
 
-def check_ram_loader_version(sg_fd, cmd_sector_base):
+def check_ram_loader_version(eps, cmd_sector_base):
     global ram_loader_major_version
     global ram_loader_minor_version
     global ram_loader_small_version
-    version_sector = read_blocks( sg_fd, \
+    version_sector = read_sectors( eps, \
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
     configs.blOneStageReady = False
-    if ord(version_sector[8]) == 1:
+    if version_sector[8] == 1:
         info("ROM Type: %s" % version_sector[9:11])
-    if ord(version_sector[8]) == 2:
+    if version_sector[8] == 2:
         info("Flash Type: %s" % version_sector[9:11])
         warn("Ram Loader not found. Burn it now!")
-        set_dl_img_type(sg_fd, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-        usb_burn_ram_loader_file_to_ram(sg_fd, configs.ram_loader_path)
-    if ord(version_sector[8]) == 3:
-        ram_loader_major_version = int(version_sector[9:11])
-        ram_loader_minor_version = int(version_sector[12:14])
-        ram_loader_small_version = int(version_sector[15:17])
-        info("RAM Type (Ram Loader Version): %s" % version_sector[9:17])
+        set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
+        usb_burn_ram_loader_file_to_ram(eps, configs.ram_loader_path)
+    if version_sector[8] == 3:
+        ram_loader_major_version = int(version_sector[9:11].tostring())
+        ram_loader_minor_version = int(version_sector[12:14].tostring())
+        ram_loader_small_version = int(version_sector[15:17].tostring())
+        info("RAM Type (Ram Loader Version): %s" % version_sector[9:17].tostring())
 
         ram_loader_versions = [ram_loader_major_version, 
                     ram_loader_minor_version,
@@ -81,13 +82,13 @@ def check_ram_loader_version(sg_fd, cmd_sector_base):
             info("Ram Loader is ok!")
 
 
-def get_flash_type(sg_fd, cmd_sector_base):
-    dev_type_sector = read_blocks(sg_fd, \
+def get_flash_type(eps, cmd_sector_base):
+    dev_type_sector = read_sectors(eps, \
             cmd_sector_base + USB_PROGRAMMER_GET_DEV_TYPE_OFFSET, 1)
-    if ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NAND:
+    if dev_type_sector[8] == FLASH_DEV_TYPE_IS_NAND:
         ucDevType = FLASH_DEV_TYPE_IS_NAND
         dbg("Dev type is nand flash")
-    elif ord(dev_type_sector[8]) == FLASH_DEV_TYPE_IS_NOR:
+    elif dev_type_sector[8] == FLASH_DEV_TYPE_IS_NOR:
         ucDevType = FLASH_DEV_TYPE_IS_NOR
         dbg("Dev type is nor flash")
     else:
@@ -96,88 +97,57 @@ def get_flash_type(sg_fd, cmd_sector_base):
     return ucDevType
 
 
+def verify_im_ldr_usb(eps):
+    dbg("\nChecking: ", eps)
 
-def get_im_sg_fd():
-    sg_list = glob.glob('/dev/sg[0-9]*')
-    dbg(sg_list)
-    sg_fd = -1
-    for sg_path in sg_list:
-        dbg(sg_path)
-        if sg_fd >= 0:
-            os.close(sg_fd)
-        sg_fd = -1
-        try:
-            sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
-            if sg_fd < 0:
-                dbg("Open sg dev failed. sg_fd=", sg_fd)
-                continue
-            dbg("\nChecking: ", sg_path)
+    ( periheral_qualifer, periheral_dev_type, 
+            t10_vendor_ident, product_ident ) = \
+                    inquiry_info(eps)
+    if periheral_qualifer != 0x00 or \
+            periheral_dev_type != 0x00 or \
+            not t10_vendor_ident.startswith('Infomax') or \
+            not product_ident.startswith('Flash Disk'):
+                dbg("not Infomax Flash Disk, skip")
+                return False
+    print()
+    info("Sg dev info match")
 
-            ( periheral_qualifer, periheral_dev_type, 
-                    t10_vendor_ident, product_ident ) = \
-                            inquiry_sg_dev_info(sg_fd)
-            if periheral_qualifer != 0x00 or \
-                    periheral_dev_type != 0x00 or \
-                    not t10_vendor_ident.startswith('Infomax') or \
-                    not product_ident.startswith('Flash Disk'):
-                        dbg("not Infomax Flash Disk, skip")
-                        continue
-            print()
-            info("Sg dev info match")
+    numofblock, block_size = capacity_info(eps)
+    if block_size and block_size != SECTOR_SIZE:
+        warn("Unable to handle block_size=%d, must be %d" \
+                % (block_size, SECTOR_SIZE))
+        return False
+    if not numofblock:
+        warn("fail to read numofblock of ", eps)
+        return False
 
-            lastblock, block_size = get_dev_block_info(sg_fd)
-            if block_size and block_size != SECTOR_SIZE:
-                warn("Unable to handle block_size=%d, must be %d" \
-                        % (block_size, SECTOR_SIZE))
-                continue
-            if not lastblock:
-                #warn("fail to read lastblock of ", sg_fd)
-                continue
+    cmd_sector_base = numofblock - COMMAND_AREA_SIZE
+    ret = check_magic_str(eps, cmd_sector_base)
+    if ret: 
+        info("Magic string match")
+    else:
+        warn("Magic string not match, this is ok to ignore")
+        return False
 
-            cmd_sector_base = lastblock - COMMAND_AREA_SIZE
-            ret = check_magic_str(sg_fd, cmd_sector_base)
-            if ret: 
-                info("Magic string match")
-            else:
-                warn("Magic string not match, this is ok to ignore")
-                continue
+    check_ram_loader_version(eps, cmd_sector_base)
 
-            check_ram_loader_version(sg_fd, cmd_sector_base)
+    ret = change_to_dl_mode(eps)
+    if ret:
+        info("Change device to download mode succeed")
+    else:
+        wtf("Change device to download mode failed")
 
-            ret = change_to_dl_mode(sg_fd)
-            if ret:
-                info("Change device to download mode succeed")
-            else:
-                wtf("Change device to download mode failed")
+    ret = get_flash_type(eps, cmd_sector_base)
+    if ret:
+        info("Get flash type succeed")
+    else:
+        warn("Get flash type failed, maybe this is a bug")
+        return False
 
-            ret = get_flash_type(sg_fd, cmd_sector_base)
-            if ret:
-                info("Get flash type succeed")
-            else:
-                warn("Get flash type failed, maybe this is a bug")
-                continue
-            return sg_fd
-        except EnvironmentError as e:
-            dbg("sg_fd=", sg_fd)
-            dbg(e)
-            pass
-    if sg_fd >= 0:
-        os.close(sg_fd)
-    return None
-
-def wait_and_get_im_sg_fd():
-    #info("waiting for device to appear")
-    progressBar = Spinner("Waiting for device: ")
-    while True:
-        sg_fd = get_im_sg_fd()
-        if sg_fd:
-            progressBar.finish()
-            return sg_fd
-        time.sleep(0.5)
-        progressBar.next()
 
 
 
 if __name__ == "__main__":
     configs.debug = True
-    wait_and_get_im_sg_fd()
+    eps = find_im_ldr_usb()
+    verify_im_ldr_usb(eps)

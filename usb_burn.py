@@ -15,7 +15,7 @@ from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from py_sg import SCSIError
-from usb_generic import read_blocks, write_blocks, write_large_buf, get_dev_block_info
+from usb_generic import read_sectors, write_sectors, write_large_buf, capacity_info
 from usb_erase import *
 
 
@@ -26,7 +26,7 @@ def usb_burn_ram_loader_to_ram(sg_fd, img_buf):
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
     write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
     try:
-        write_blocks(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
+        write_sectors(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
     except SCSIError as e:
         #warn("SCSIError", e)
         pass
@@ -168,16 +168,16 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
         if is_last_block:
             dbg("Write spare_buf, size=0x%x" % (size_nand_spare * pair_cnt))
         # dbg("write spare_buf")
-        write_blocks(sg_fd, spare_buf,
+        write_sectors(sg_fd, spare_buf,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_block / SECTOR_SIZE)
         if is_last_block:
             dbg("Write page_buf, size=0x%x" % (size_nand_page * pair_cnt))
         #sys.stdout.flush()
         # dbg("write page_buf")
-        #write_blocks(sg_fd, page_buf, sector_offset, 
+        #write_sectors(sg_fd, page_buf, sector_offset, 
         #        (pair_cnt * size_nand_page) / SECTOR_SIZE)
-        write_blocks(sg_fd, page_buf, sector_offset, 
+        write_sectors(sg_fd, page_buf, sector_offset, 
                 SECTOR_NUM_PER_WRITE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
@@ -189,7 +189,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     dbg("Write yaffs2 to nand finished")
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)
-    write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
+    write_sectors(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
 
 if __name__ == "__main__":
