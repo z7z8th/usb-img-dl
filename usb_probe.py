@@ -143,6 +143,7 @@ def verify_im_ldr_usb(eps):
     else:
         warn("Get flash type failed, maybe this is a bug")
         return False
+    return True
 
 
 

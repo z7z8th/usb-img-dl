@@ -139,8 +139,8 @@ def read_sectors(eps, sector_offset, sector_num, timeout=800):
 
 WRITE_10 = 0x2a
 def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
-    dbg("eps=%s, sector_offset=%x, sector_num=%x, timeout=%d" % \
-            (eps, sector_offset, sector_num, timeout))
+    dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
+            (sector_offset, sector_num, timeout))
     wr_size = sector_num * SECTOR_SIZE
     assert(len(buf) == wr_size)
     cdb = chr(WRITE_10) + NULL_CHAR
@@ -155,6 +155,7 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
         ret = write_cbw(eps[0], CBW_FLAG_OUT, 
                 wr_size, cdb, timeout)
         ret = eps[0].write(buf)
+        dbg("ep wr size:", ret, "/", wr_size)
         assert(ret == wr_size)
         csw_data = eps[1].read(CSW_SIZE)
         assert(csw_data[:4].tostring() == CSW_SIGNATURE)

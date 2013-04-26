@@ -12,7 +12,7 @@ import mtd_part_alloc
 from usb_generic import read_sectors, write_sectors, capacity_info
 
 
-def usb_erase_dyn_id(sg_fd, dyn_id):
+def usb_erase_dyn_id(eps, dyn_id):
     dyn_id_init_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET
     dyn_id_init_len    = mtd_part_alloc.DYN_ID_INIT_LENGTH
     platform_id = 0x15
@@ -29,28 +29,28 @@ def usb_erase_dyn_id(sg_fd, dyn_id):
     progressBar = IncrementalBar('Erasing',
             max = 2,
             suffix='%(percent)d%%')
-    write_sectors(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
+    write_sectors(eps, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
     if not configs.debug:
         progressBar.next()
-    write_sectors(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
+    write_sectors(eps, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
     if not configs.debug:
         progressBar.next()
     progressBar.finish()
     dbg("erase dyn id finished")
 
 
-def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
+def usb_erase_generic(eps, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     if is_yaffs2:
         dbg("Erase Type is yaffs2")
         buf = '\x01'
         buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
-        write_sectors(sg_fd, buf, \
+        write_sectors(eps, buf, \
                 USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
     buf = int32_le_to_str_be(mtd_part_start_addr)
     buf += int32_le_to_str_be(mtd_part_size)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
-    write_sectors(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
+    write_sectors(eps, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
     dbg("Start to erase")
     progressBar = IncrementalBar('Erasing', 
@@ -63,7 +63,7 @@ def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
         buf = int32_le_to_str_be(nand_start_erase_addr)
         buf += int32_le_to_str_be(size_to_erase)
         buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
-        write_sectors(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
+        write_sectors(eps, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
         nand_start_erase_addr += size_to_erase
         nand_erase_size    -= size_to_erase
         if not configs.debug:
@@ -71,8 +71,8 @@ def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     progressBar.finish()
     dbg("Erase succeed")
 
-def usb_erase_whole_nand_flash(sg_fd):
-    usb_erase_generic(sg_fd, mtd_part_alloc.IM9828_NAND_OFFSET,
+def usb_erase_whole_nand_flash(eps):
+    usb_erase_generic(eps, mtd_part_alloc.IM9828_NAND_OFFSET,
             mtd_part_alloc.IM9828_NAND_LENGTH, False)
 
 

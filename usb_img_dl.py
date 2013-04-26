@@ -12,7 +12,8 @@ import configs
 from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
-from usb_probe import wait_and_get_im_sg_fd
+from usb_generic import find_im_ldr_usb
+from usb_probe import verify_im_ldr_usb
 from usb_misc import *
 from usb_burn import *
 
@@ -165,28 +166,15 @@ def usb_img_dl_main():
     dbg("dump_list: ", list(dump_list))
 
     ################ probe device ################
-    sg_fd = -1
-    if options.sg_path:
-        if not os.path.exists(options.sg_path):
-            wtf(options.sg_path, "does not exists")
-        else:
-            sg_path = options.sg_path
-            sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
-    else:
-        sg_fd = wait_and_get_im_sg_fd()
-
-    try:
-        fcntl.flock(sg_fd, fcntl.LOCK_EX)
-    except IOError as e:
-        os_errno = os.errno
-        err(e)
-        wtf(os.strerror(os_errno))
-
-
+    eps = None
+    eps = find_im_ldr_usb()
+    if eps is None:
+        wtf("Unable to find bootloader.")
+    verify_result = verify_im_ldr_usb(eps)
+    if verify_result is not True:
+        wtf("Unable to verify bootloader.")
     time.sleep(0.5)
 
-    if sg_fd < 0:
-        wtf("unable to open device.")
 
     ################# burn ram loader ################
     if configs.ram_loader_need_update or options.burn_list and 'R' in options.burn_list:
@@ -195,7 +183,7 @@ def usb_img_dl_main():
             idx = options.burn_list.index('R')
             configs.ram_loader_path = img_paths[idx]
 
-    usb2_start(sg_fd)
+    usb2_start(eps)
 
     ################# dump ################
     for d in dump_list:
@@ -208,7 +196,7 @@ def usb_img_dl_main():
     assert(not (options.erase_all and len(erase_list)>0))
     if options.erase_all:
         info("Erase whole nand Flash!")
-        usb_erase_whole_nand_flash(sg_fd)
+        usb_erase_whole_nand_flash(eps)
     else:
         for e in erase_list:
             erase_desc = type_call_dict[e]['std_name']
@@ -216,13 +204,13 @@ def usb_img_dl_main():
             info('='*80)
             info("Erase " + erase_desc)
             if erase_type == 'dyn_id':
-                usb_erase_dyn_id(sg_fd, type_call_dict[e]['func_params'])
+                usb_erase_dyn_id(eps, type_call_dict[e]['func_params'])
             elif type_call_dict[e]['img_type'] == 'raw':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_generic(sg_fd, erase_offset, erase_length, is_yaffs2=False)
+                usb_erase_generic(eps, erase_offset, erase_length, is_yaffs2=False)
             elif type_call_dict[e]['img_type'] == 'yaffs2':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_generic(sg_fd, erase_offset, erase_length, is_yaffs2=True)
+                usb_erase_generic(eps, erase_offset, erase_length, is_yaffs2=True)
             else:
                 wtf("Unknown img type")
             info("\n;-) Erase %s succeed!" % erase_desc)
@@ -242,27 +230,27 @@ def usb_img_dl_main():
 
             with open(img_paths[i], 'rb') as img_fd:
                 img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-                set_dl_img_type(sg_fd, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+                set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
                 time.sleep(0.5)
 
                 burn_desc = type_call_dict[b]['std_name']
                 burn_type = type_call_dict[b]['img_type']
                 if burn_type == 'dyn_id':
-                    usb_burn_dyn_id(sg_fd, img_buf, type_call_dict[b]['func_params'])
+                    usb_burn_dyn_id(eps, img_buf, type_call_dict[b]['func_params'])
                 elif burn_type == 'raw':
                     burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                    usb_burn_raw(sg_fd, img_buf, burn_offset, burn_lenght)
+                    usb_burn_raw(eps, img_buf, burn_offset, burn_lenght)
                 elif type_call_dict[b]['img_type'] == 'yaffs2':
                     burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                    usb_burn_yaffs2(sg_fd, img_buf, burn_offset, burn_lenght)
+                    usb_burn_yaffs2(eps, img_buf, burn_offset, burn_lenght)
                 else:
                     wtf("Unknown img type")
 
                 info("\n;-) Burn %s succeed!\n" % burn_desc)
                 img_buf.close()
 
-    usb2_end(sg_fd)
-    os.close(sg_fd)
+    usb2_end(eps)
+    
     warn("\nAll operations Completed!\n")
 
 

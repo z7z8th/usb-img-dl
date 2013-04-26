@@ -20,13 +20,13 @@ from usb_erase import *
 
 
 
-def usb_burn_ram_loader_to_ram(sg_fd, img_buf):
+def usb_burn_ram_loader_to_ram(eps, img_buf):
     dbg("enter: ", get_cur_func_name())
     sys.stdout.flush()
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
-    write_large_buf(sg_fd, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
+    write_large_buf(eps, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
     try:
-        write_sectors(sg_fd, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
+        write_sectors(eps, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
     except SCSIError as e:
         #warn("SCSIError", e)
         pass
@@ -36,30 +36,30 @@ def usb_burn_ram_loader_to_ram(sg_fd, img_buf):
     sys.exit(0)
 
 
-def usb_burn_ram_loader_file_to_ram(sg_fd, loader_path):
+def usb_burn_ram_loader_file_to_ram(eps, loader_path):
     dbg("enter: ", get_cur_func_name())
     if not os.path.exists(loader_path):
         wtf("No such file: ", loader_path)
     with open(loader_path, 'rb') as img_fd:
         img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-        usb_burn_ram_loader_to_ram(sg_fd, img_buf)
+        usb_burn_ram_loader_to_ram(eps, img_buf)
         img_buf.close()
 
 
-def usb_burn_dyn_id(sg_fd, img_buf, dyn_id):
+def usb_burn_dyn_id(eps, img_buf, dyn_id):
     # erase and set nand partition info
-    usb_erase_dyn_id(sg_fd, dyn_id)
+    usb_erase_dyn_id(eps, dyn_id)
     sector_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET / SECTOR_SIZE
     # start write img
-    write_large_buf(sg_fd, img_buf, sector_offset)
+    write_large_buf(eps, img_buf, sector_offset)
 
 
-def usb_burn_raw(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
+def usb_burn_raw(eps, img_buf, mtd_part_start_addr, mtd_part_size):
     sector_offset = mtd_part_start_addr / SECTOR_SIZE
     # erase first
-    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, False)
+    usb_erase_generic(eps, mtd_part_start_addr, mtd_part_size, False)
     # start write img
-    write_large_buf(sg_fd, img_buf, sector_offset)
+    write_large_buf(eps, img_buf, sector_offset)
 
 
 def parse_yaffs2_header(header_buf):
@@ -95,8 +95,8 @@ def parse_yaffs2_header(header_buf):
     return (header_size, size_nand_page, size_nand_spare)
 
 
-def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
-    assert(isinstance(sg_fd, int))
+def usb_burn_yaffs2(eps, img_buf, mtd_part_start_addr, mtd_part_size):
+    # assert(isinstance(eps, int))
     assert(isinstance(mtd_part_start_addr, int))
     assert(isinstance(mtd_part_size, int))
     ret = False
@@ -108,7 +108,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     dbg("img_total_size=0x%x" % img_total_size)
 
     # erase nand partition
-    usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, True)
+    usb_erase_generic(eps, mtd_part_start_addr, mtd_part_size, True)
 
     # write yaffs2
     dbg("Start to write yaffs2")
@@ -168,16 +168,16 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
         if is_last_block:
             dbg("Write spare_buf, size=0x%x" % (size_nand_spare * pair_cnt))
         # dbg("write spare_buf")
-        write_sectors(sg_fd, spare_buf,
+        write_sectors(eps, spare_buf,
                 USB_PROGRAMMER_WR_NAND_SPARE_DATA,
                 size_spare_per_nand_block / SECTOR_SIZE)
         if is_last_block:
             dbg("Write page_buf, size=0x%x" % (size_nand_page * pair_cnt))
         #sys.stdout.flush()
         # dbg("write page_buf")
-        #write_sectors(sg_fd, page_buf, sector_offset, 
+        #write_sectors(eps, page_buf, sector_offset, 
         #        (pair_cnt * size_nand_page) / SECTOR_SIZE)
-        write_sectors(sg_fd, page_buf, sector_offset, 
+        write_sectors(eps, page_buf, sector_offset, 
                 SECTOR_NUM_PER_WRITE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
@@ -189,7 +189,7 @@ def usb_burn_yaffs2(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
     dbg("Write yaffs2 to nand finished")
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)
-    write_sectors(sg_fd, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
+    write_sectors(eps, buf, USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
 
 if __name__ == "__main__":
