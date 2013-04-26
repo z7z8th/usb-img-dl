@@ -128,9 +128,9 @@ def read_sectors(eps, sector_offset, sector_num, timeout=800):
     try:
         ret = write_cbw(eps[0], CBW_FLAG_IN, 
                     rd_size, cdb, timeout)
-        sector_data = eps[1].read(rd_size)
+        sector_data = eps[1].read(rd_size, timeout)
         assert(len(sector_data) == rd_size)
-        csw_data = eps[1].read(CSW_SIZE)
+        csw_data = eps[1].read(CSW_SIZE, timeout)
         assert(csw_data[:4].tostring() == CSW_SIGNATURE)
         dbg("CSW Status=", csw_data[12])
     except USBError as e:
@@ -154,10 +154,10 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
     try:
         ret = write_cbw(eps[0], CBW_FLAG_OUT, 
                 wr_size, cdb, timeout)
-        ret = eps[0].write(buf)
+        ret = eps[0].write(buf, timeout)
         dbg("ep wr size:", ret, "/", wr_size)
         assert(ret == wr_size)
-        csw_data = eps[1].read(CSW_SIZE)
+        csw_data = eps[1].read(CSW_SIZE, timeout)
         assert(csw_data[:4].tostring() == CSW_SIGNATURE)
         dbg("CSW Status=", csw_data[12])
         ret = (csw_data[12] == 0)
