@@ -17,8 +17,8 @@ def usb_erase_dyn_id(sg_fd, dyn_id):
     dyn_id_init_len    = mtd_part_alloc.DYN_ID_INIT_LENGTH
     platform_id = 0x15
 
-    buf = int32_to_str(dyn_id_init_offset)
-    buf += int32_to_str(dyn_id_init_len)
+    buf = int32_le_to_str_be(dyn_id_init_offset)
+    buf += int32_le_to_str_be(dyn_id_init_len)
     buf += NULL_CHAR * 2
     buf += chr(0x98)
     buf += chr(platform_id)
@@ -47,8 +47,8 @@ def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
         write_blocks(sg_fd, buf, \
                 USB_PROGRAMMER_SET_NAND_SPARE_DATA_CTRL, 1)
 
-    buf = int32_to_str(mtd_part_start_addr)
-    buf += int32_to_str(mtd_part_size)
+    buf = int32_le_to_str_be(mtd_part_start_addr)
+    buf += int32_le_to_str_be(mtd_part_size)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
@@ -60,8 +60,8 @@ def usb_erase_generic(sg_fd, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     nand_erase_size = mtd_part_size
     while nand_erase_size > 0:
         size_to_erase = min(nand_erase_size, NAND_ERASE_MAX_LEN_PER_TIME)
-        buf = int32_to_str(nand_start_erase_addr)
-        buf += int32_to_str(size_to_erase)
+        buf = int32_le_to_str_be(nand_start_erase_addr)
+        buf += int32_le_to_str_be(size_to_erase)
         buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
         write_blocks(sg_fd, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1)
         nand_start_erase_addr += size_to_erase

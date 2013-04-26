@@ -8,7 +8,7 @@ def set_dl_img_type(sg_fd, dl_img_type, mtd_part_start_addr):
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_DEVICE, 1)
     if not ret:
         wtf("Fail to set download img type")
-    buf = int32_to_str(mtd_part_start_addr)
+    buf = int32_le_to_str_be(mtd_part_start_addr)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_SET_BOOT_ADDR, 1)
     if not ret:
@@ -21,8 +21,8 @@ def usb_wr_bb_reg(sg_fd, addr, value):
     assert_number(sg_fd)
     assert_number(addr)
     assert_number(value)
-    buf = int32_to_str(addr)
-    buf += int32_to_str(value)
+    buf = int32_le_to_str_be(addr)
+    buf += int32_le_to_str_be(value)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     #dbg(get_cur_func_name()+"(): len=", len(buf), "buf=", repr(buf))
     ret = write_blocks(sg_fd, buf, USB_PROGRAMMER_WR_BB_REG, 1)

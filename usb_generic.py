@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
 import time
-from py_sg import write as sg_write
-from py_sg import read as sg_read
-from py_sg import SCSIError
 from progress.bar import IncrementalBar
 
 import configs
@@ -11,23 +8,31 @@ from const_vars import *
 from debug_utils import *
 from utils import *
 
-INQUIRY = 0x12
-INQUIRY_DATA_LEN = 0xFF
-def inquiry_sg_dev_info(sg_fd):
-    cmd = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
-    try:
-        inquiry_buf = sg_read(sg_fd, cmd, INQUIRY_DATA_LEN, 800)
-    except SCSIError as e:
-        #warn("SCSIError: ", e)
-        return None
+import usb.core
+import usb.util
+from usb.core import USBError
+
+CBW_SIGNATURE = 'USBC'
+CBW_TAG       = NULL_CHAR * 4
+
+CBW_FLAG_IN   = '\x80'
+CBW_FLAG_OUT  = '\x00'
+CBW_LUN       = '\x01'
+CBW_CB_LEN    = '\x0A'
+CBW_SIZE      = 31
+
+CSW_SIGNATURE = 'USBS'
+CSW_SIZE      = 13
+
+def print_inquiry_data(inquiry_buf):
     assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
-    periheral_qualifer = (ord(inquiry_buf[0]) & 0xE0) >> 5
-    periheral_dev_type = ord(inquiry_buf[0]) & 0x1F
-    rmb = (ord(inquiry_buf[1]) & 0x80) >> 7
-    version = ord(inquiry_buf[2])
-    t10_vendor_ident = inquiry_buf[8:16]
-    product_ident = inquiry_buf[16:32]
-    product_rev_lvl = inquiry_buf[32:36]
+    periheral_qualifer = (inquiry_buf[0] & 0xE0) >> 5
+    periheral_dev_type = inquiry_buf[0] & 0x1F
+    rmb = (inquiry_buf[1] & 0x80) >> 7
+    version = inquiry_buf[2]
+    t10_vendor_ident = inquiry_buf[8:16].tostring()
+    product_ident = inquiry_buf[16:32].tostring()
+    product_rev_lvl = inquiry_buf[32:36].tostring()
     #vendor_specific = inquiry_buf[36:56]
     
     dbg("len(inquiry_buf)=", len(inquiry_buf))
@@ -41,60 +46,115 @@ def inquiry_sg_dev_info(sg_fd):
     #dbg("vendor_specific=", vendor_specific)
     return (periheral_qualifer, periheral_dev_type, t10_vendor_ident, product_ident)
 
+INQUIRY = 0x12
+INQUIRY_DATA_LEN = 36
+def inquiry_sg_dev_info(eps):
+    dbg("======== inquiry_sg_dev_info")
+    cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
+    ret_buf=None
+    try:
+        ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, 800)
+        dbg("CBW written!")
+        inquiry_buf = eps[1].read(INQUIRY_DATA_LEN)
+        dbg("inquiry_buf=", inquiry_buf)
+        dbg("inquiry info read!")
+        ret_buf = print_inquiry_data(inquiry_buf)
+        csw_data = eps[1].read(CSW_SIZE)
+        dbg("CSW read:", csw_data)
+        assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+        dbg("CSW Status=", csw_data[12])
+    except USBError as e:
+        warn("USBError: ", e)
+        return None
+    assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
+    return ret_buf
+
 
 READ_CAPACITY = 0x25
-def get_dev_block_info(sg_fd):
-    cmd = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
-    try:
-        read_buf = sg_read(sg_fd, cmd, 8, 800)
-    except SCSIError as e:
-        warn("SCSIError: ", e)
-        return (None, None)
-
-    lastblock = str_to_int32_be(read_buf[0:4])
-    blocksize = str_to_int32_be(read_buf[4:8])
+def get_dev_block_info(eps):
+    dbg("======== get_dev_block_info")
+    cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
+    #try:
+    ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, 800)
+    read_buf = eps[1].read(8)
+    dbg("block info: ", read_buf)
+    lastblock = str_be_to_int32_le(read_buf[:4].tostring())
+    blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
 
     disk_cap = (lastblock+1) * blocksize
     dbg("lastblock=", lastblock)
     dbg("blocksize=", blocksize)
     dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
+
+    csw_data = eps[1].read(CSW_SIZE)
+    dbg("csw: ", csw_data)
+    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+    dbg("CSW Status=", csw_data[12])
+    #except USBError as e:
+    #    warn("USBError: ", e)
+    #    return (None, None)
+
     return lastblock, blocksize
 
 
-READ_10 = 0x28
-def read_blocks(sg_fd, sector_offset, sector_num):
-    cmd = chr(READ_10) + NULL_CHAR
-    cmd += int32_to_str(sector_offset)
-    cmd += NULL_CHAR
-    cmd += chr((sector_num>>8) & 0xFF)
-    cmd += chr(sector_num & 0xFF)
-    cmd += NULL_CHAR
+def write_cbw(ep_out, direction, data_len, cdb, timeout=1500):
+    cbw_data_len = int32_le_to_str_le(data_len)
+
+    cbw = CBW_SIGNATURE + CBW_TAG + cbw_data_len + direction + CBW_LUN
+    cbw += CBW_CB_LEN + cdb
+    cbw += NULL_CHAR * (CBW_SIZE - len(cbw))
 
     try:
-        read_buf = sg_read(sg_fd, cmd, sector_num * SECTOR_SIZE, 800 )
-    except SCSIError as e:
-        warn(get_cur_func_name()+"(): SCSIError: ", e)
+        ret = ep_out.write(cbw, timeout)
+        dbg("write_cbw: ret=", ret)
+    except USBError as e:
+        warn(get_cur_func_name()+"(): USBError: ", e)
         return None
-    return read_buf
+    return ret
 
+READ_10 = 0x28
+def read_sectors(eps, sector_offset, sector_num, timeout=800):
+    cdb = chr(READ_10) + NULL_CHAR
+    cdb += int32_le_to_str_be(sector_offset)
+    cdb += NULL_CHAR
+    cdb += chr((sector_num>>8) & 0xFF)
+    cdb += chr(sector_num & 0xFF)
+    cdb += NULL_CHAR
+
+    try:
+        ret = write_cbw(eps[0], CBW_FLAG_IN, 
+                    sector_num * SECTOR_SIZE, cdb, timeout)
+        sector_data = eps[1].read(sector_num * SECTOR_SIZE)
+        csw_data = eps[1].read(CSW_SIZE)
+        assert(csw_data[:4] == CSW_SIGNATURE)
+        dbg("CSW Status=", csw_data[12])
+    except USBError as e:
+        warn(get_cur_func_name()+"(): USBError:", e)
+    return sector_data
 
 WRITE_10 = 0x2a
-def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
-    dbg("sg_fd=%d, sector_offset=%x, sector_num=%x, timeout=%d" % \
-            (sg_fd, sector_offset, sector_num, timeout))
-    cmd = chr(WRITE_10) + NULL_CHAR
-    cmd += int32_to_str(sector_offset)
-    cmd += NULL_CHAR
-    cmd += chr((sector_num>>8) & 0xFF)
-    cmd += chr(sector_num & 0xFF)
-    cmd += NULL_CHAR
+def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
+    dbg("eps=%s, sector_offset=%x, sector_num=%x, timeout=%d" % \
+            (eps, sector_offset, sector_num, timeout))
+    cdb = chr(WRITE_10) + NULL_CHAR
+    cdb += int32_le_to_str_be(sector_offset)
+    cdb += NULL_CHAR
+    cdb += chr((sector_num>>8) & 0xFF)
+    cdb += chr(sector_num & 0xFF)
+    cdb += NULL_CHAR
 
-    ret = False
+    ret = None
     try:
-        response = sg_write(sg_fd, cmd, buf, timeout)
-        ret = True
-    except SCSIError as e:
-        warn(get_cur_func_name()+"(): SCSIError:", e)
+        ret = write_cbw(eps[0], CBW_FLAG_OUT, cdb, 
+                          sector_num * SECTOR_SIZE, timeout)
+        ret = eps[0].write(buf)
+        csw_data = eps[1].read(CSW_SIZE)
+        assert(csw_data[:4] == CSW_SIGNATURE)
+        dbg("CSW Status=", csw_data[12])
+        ret = (ord(csw_data[12]) == 0)
+    except USBError as e:
+        warn(get_cur_func_name()+"(): USBError:", e)
+        ret = None
     #except OSError as e:
     #    warn(get_cur_func_name()+"(): OSError: ", e)
 
@@ -104,7 +164,7 @@ def write_blocks(sg_fd, buf, sector_offset, sector_num, timeout=1500):
     return ret
 
 
-def write_large_buf(sg_fd, large_buf, sector_offset,
+def write_large_buf(eps, large_buf, sector_offset,
         size_per_write = SIZE_PER_WRITE):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
@@ -122,7 +182,7 @@ def write_large_buf(sg_fd, large_buf, sector_offset,
         buf_len = buf_end_offset - size_written
         if buf_len < size_per_write:
             buf += NULL_CHAR * (sector_num_write*SECTOR_SIZE - buf_len)
-        write_blocks(sg_fd, buf, sector_offset, sector_num_write)
+        write_blocks(eps, buf, sector_offset, sector_num_write)
         size_written += size_per_write
         sector_offset += sector_num_write
         if not configs.debug:
@@ -130,14 +190,59 @@ def write_large_buf(sg_fd, large_buf, sector_offset,
     progressBar.finish()
     dbg("End of " + get_cur_func_name())
 
+def find_fb_usb():
+    dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
+
+    info("find_fb_usb: dev=", dev)
+
+    # was it found?
+    if dev is None:
+        raise ValueError('Device not found')
+
+    # set the active configuration. With no arguments, the first
+    # configuration will be the active one
+
+    # dev.set_configuration()
+
+    # get an endpoint instance
+    cfg = dev.get_active_configuration()
+    dbg("find_fb_usb: cfg=", cfg)
+    interface_number = cfg[(0,0)].bInterfaceNumber
+    alternate_setting = usb.control.get_interface(dev, interface_number)
+    intf = usb.util.find_descriptor(
+        cfg, bInterfaceNumber = interface_number,
+        bAlternateSetting = alternate_setting
+    )
+
+    eps_out = usb.util.find_descriptor(
+        intf,
+        # match the first OUT endpoint
+        custom_match = \
+        lambda e: \
+            usb.util.endpoint_direction(e.bEndpointAddress) == \
+            usb.util.ENDPOINT_OUT
+    )
+    assert eps_out is not None
+    eps_in = usb.util.find_descriptor(
+        intf,
+        # match the first OUT endpoint
+        custom_match = \
+        lambda e: \
+            usb.util.endpoint_direction(e.bEndpointAddress) == \
+            usb.util.ENDPOINT_IN
+    )
+
+    assert eps_in is not None
+    return [eps_out, eps_in]
+
 
 if __name__ == "__main__":
     configs.debug = True
     import sys
-    sg_path = sys.argv[1]
-    sg_fd = os.open(sg_path, os.O_SYNC | os.O_RDWR)
-    assert(sg_fd >= 0)
-    inquiry_sg_dev_info(sg_fd)
-    print(get_dev_block_info(sg_fd))
-    os.close(sg_fd)
+
+    eps = find_fb_usb()
+    assert(eps >= 0)
+    inquiry_sg_dev_info(eps)
+    print(get_dev_block_info(eps))
+
 

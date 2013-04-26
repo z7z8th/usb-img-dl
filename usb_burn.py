@@ -64,10 +64,10 @@ def usb_burn_raw(sg_fd, img_buf, mtd_part_start_addr, mtd_part_size):
 
 def parse_yaffs2_header(header_buf):
     header_size = 0
-    yaffs2_head_id = str_to_int32_le(header_buf[0:4])
-    yaffs2_version = str_to_int32_le(header_buf[4:8])
-    yaffs2_byte_per_chunk = str_to_int32_le(header_buf[8:12])
-    yaffs2_byte_nand_spare = str_to_int32_le(header_buf[12:16])
+    yaffs2_head_id = str_le_to_int32_le(header_buf[0:4])
+    yaffs2_version = str_le_to_int32_le(header_buf[4:8])
+    yaffs2_byte_per_chunk = str_le_to_int32_le(header_buf[8:12])
+    yaffs2_byte_nand_spare = str_le_to_int32_le(header_buf[12:16])
 
     dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
             "chunk_size=%d, spare_size=%d" % \
