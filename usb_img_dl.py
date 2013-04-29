@@ -5,10 +5,10 @@ import os
 import sys
 import re
 from optparse import OptionParser
-import fcntl
 import thread
 import usb.core
-import signal
+#import signal
+import time
 
 import configs
 import configs
@@ -117,28 +117,60 @@ def parse_options():
 
 
 
-def usb_dl_thread_func(dev, options, img_paths):
+def usb_dl_thread_func(dev, options, img_buf_dict):
     info("\n>>>>>>>>>>>>>>> new dl thread\n")
     ################ get ep out/in of usb device ################
     eps = None
     eps = get_usb_dev_eps(dev)
     if eps is None:
         wtf("Unable to find bootloader.")
-    verify_result = verify_im_ldr_usb(eps)
-    if verify_result is not True:
+    ret = verify_im_ldr_usb(eps)
+    if not ret:
         wtf("Unable to verify bootloader.")
-    time.sleep(0.5)
 
+    raw_dev_match_dict = {
+            'idVendor'  : 0x18D1, 
+            'idProduct' : 0x0FFF,
+            'bus' : dev.bus,
+        }
 
     ################# burn ram loader ################
-    if configs.ram_loader_need_update or options.burn_list \
-            and 'R' in options.burn_list:
-        info("Will updating Ram Loader")
+    if configs.ram_loader_need_update or \
+            (options.burn_list and 'R' in options.burn_list):
+        info("Updating Ram Loader...")
         if 'R' in options.burn_list:
-            idx = options.burn_list.index('R')
-            configs.ram_loader_path = img_paths[idx]
+            ldr_desc = type_call_dict['R']['std_name']
+            set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
+            usb_burn_ram_loader(eps, img_buf_dict[ldr_desc])
+        else:
+            usb_burn_ram_loader_file_to_ram(eps, configs.ram_loader_path)
+        # configs.ram_loader_need_update = False
+        dev = None
+        while dev is None:
+            time.sleep(0.2)
+            dev = usb.core.find( custom_match = lambda d:   \
+                        ( d.idVendor == raw_dev_match_dict['idVendor'] and \
+                            d.idProduct == raw_dev_match_dict['idProduct'] and \
+                            d.bus == raw_dev_match_dict['bus'] )
+                    )
+        dbg("@^" * 30)
+        dbg(dev.__dict__)
+        eps = None
+        eps = get_usb_dev_eps(dev)
+        if eps is None:
+            wtf("Unable to find bootloader.")
+        ret = verify_im_ldr_usb(eps)
+        if not ret:
+            wtf("Unable to verify bootloader.")
+
+#FIXME: need sleep?
+#    time.sleep(0.5)
+
 
     usb2_start(eps)
+
+    ############### set dl type to flash ###############
+    set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
 
     ################# dump ################
     for d in options.dump_list:
@@ -173,36 +205,26 @@ def usb_dl_thread_func(dev, options, img_paths):
     ################ burn ################
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
-            info('='*80)
-            info("Burn "+type_call_dict[b]['std_name']+": "+img_paths[i])
+            # set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+            time.sleep(0.5)
 
-            if not re.search(type_call_dict[b]['name_pattern'],
-                    os.path.basename(img_paths[i]).lower()):
-                wtf("Image file name pattern not match,",
-                        " you maybe burning the wrong img.",
-                        " file name pattern should be:",
-                        type_call_dict[b]['name_pattern'])
+            burn_desc = type_call_dict[b]['std_name']
+            burn_type = type_call_dict[b]['img_type']
+            if burn_type == 'dyn_id':
+                usb_burn_dyn_id(eps, img_buf_dict[burn_desc], 
+                        type_call_dict[b]['func_params'])
+            elif burn_type == 'raw':
+                burn_offset, burn_lenght = type_call_dict[b]['func_params']
+                usb_burn_raw(eps, img_buf_dict[burn_desc], 
+                        burn_offset, burn_lenght)
+            elif burn_type == 'yaffs2':
+                burn_offset, burn_lenght = type_call_dict[b]['func_params']
+                usb_burn_yaffs2(eps, img_buf_dict[burn_desc], 
+                        burn_offset, burn_lenght)
+            else:
+                wtf("Unknown img type")
 
-            with open(img_paths[i], 'rb') as img_fd:
-                img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-                set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
-                time.sleep(0.5)
-
-                burn_desc = type_call_dict[b]['std_name']
-                burn_type = type_call_dict[b]['img_type']
-                if burn_type == 'dyn_id':
-                    usb_burn_dyn_id(eps, img_buf, type_call_dict[b]['func_params'])
-                elif burn_type == 'raw':
-                    burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                    usb_burn_raw(eps, img_buf, burn_offset, burn_lenght)
-                elif type_call_dict[b]['img_type'] == 'yaffs2':
-                    burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                    usb_burn_yaffs2(eps, img_buf, burn_offset, burn_lenght)
-                else:
-                    wtf("Unknown img type")
-
-                info("\n;-) Burn %s succeed!\n" % burn_desc)
-                img_buf.close()
+            info("\n;-) Burn %s succeed!\n" % burn_desc)
 
     usb2_end(eps)
     
@@ -265,15 +287,43 @@ def usb_img_dl_main():
     dbg("erase_list: ", list(erase_list))
     dbg("dump_list: ", list(dump_list))
 
+    img_buf_dict = dict()
+
+    if options.burn_list:
+        for i,b in enumerate(options.burn_list):
+            info('='*80)
+            info("Load "+type_call_dict[b]['std_name']+": "+img_paths[i])
+
+            if not re.search(type_call_dict[b]['name_pattern'],
+                    os.path.basename(img_paths[i]).lower()):
+                wtf("Image file name pattern not match,",
+                        " you maybe burning the wrong img.",
+                        " file name pattern should be:",
+                        type_call_dict[b]['name_pattern'])
+
+            img_fd = open(img_paths[i], 'rb')
+            # Unix version mmap
+            #img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+            # unix/windows mmap
+            img_buf = mmap.mmap(img_fd.fileno(), 0, access = mmap.ACCESS_READ)
+            img_buf_dict[ type_call_dict[b]['std_name'] ] = img_buf
+
     ################ probe device ################
-    dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
+    # ms loader
+    # dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
+    # raw usb loader
+    dev_list = usb.core.find(find_all = True, idVendor=0x0851, idProduct=0x0002)
     for dev in dev_list:
-        dbg("~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~")
-        dbg(dev.__dict__)
+        dbg("~*" * 20)
+        info(dev.__dict__)
         thread.start_new_thread(usb_dl_thread_func, 
-                                 (dev, options, img_paths))
+                                 (dev, options, img_buf_dict))
+    else:
+        #warn("No bootloader device found!")
+        pass
     while True:
-        signal.pause()
+        #signal.pause()
+        time.sleep(1<<30)
 
 
 if __name__ == "__main__":

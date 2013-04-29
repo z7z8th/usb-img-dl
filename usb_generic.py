@@ -12,6 +12,16 @@ import usb.core
 import usb.util
 from usb.core import USBError
 
+def usb_setup_get_max_lun(eps):
+    dbg("----->> get max lun")
+    SETUP_GET_MAX_LUN = '\xA1\xFE\x00\x00\x00\x00\x01\x00'
+    ret = eps[0].write(SETUP_GET_MAX_LUN, 1500)
+    assert(ret == len(SETUP_GET_MAX_LUN))
+    read_buf = eps[1].read(1, 1500)
+    dbg("read_buf: ", read_buf)
+    dbg("-----<< get max lun done")
+
+
 CBW_SIGNATURE = 'USBC'
 CBW_TAG       = NULL_CHAR * 4
 
@@ -52,20 +62,19 @@ def inquiry_info(eps):
     dbg("======== inquiry_info")
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
-    try:
-        ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, 800)
-        dbg("CBW written!")
-        inquiry_buf = eps[1].read(INQUIRY_DATA_LEN)
-        dbg("inquiry_buf=", inquiry_buf)
-        dbg("inquiry info read!")
-        ret_buf = print_inquiry_data(inquiry_buf)
-        csw_data = eps[1].read(CSW_SIZE)
-        dbg("CSW read:", csw_data)
-        assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-        dbg("CSW Status=", csw_data[12])
-    except USBError as e:
-        warn("USBError: ", e)
-        return None
+
+    ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, 800)
+    dbg("CBW written!")
+
+    inquiry_buf = eps[1].read(INQUIRY_DATA_LEN)
+    dbg("inquiry_buf=", inquiry_buf)
+    dbg("inquiry info read!")
+    ret_buf = print_inquiry_data(inquiry_buf)
+
+    csw_data = eps[1].read(CSW_SIZE)
+    dbg("CSW read:", csw_data)
+    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+    dbg("CSW Status=", csw_data[12])
     assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
     return ret_buf
 
@@ -74,25 +83,22 @@ READ_CAPACITY = 0x25
 def capacity_info(eps):
     dbg("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
-    try:
-        ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, 800)
 
-        read_buf = eps[1].read(8)
-        dbg("block info: ", read_buf)
-        lastblock = str_be_to_int32_le(read_buf[:4].tostring())
-        blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
-        disk_cap = (lastblock+1) * blocksize
-        dbg("lastblock=", lastblock)
-        dbg("blocksize=", blocksize)
-        dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
+    ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, 800)
 
-        csw_data = eps[1].read(CSW_SIZE)
-        dbg("csw: ", csw_data)
-        assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-        dbg("CSW Status=", csw_data[12])
-    except USBError as e:
-        warn("USBError: ", e)
-        return (None, None)
+    read_buf = eps[1].read(8)
+    dbg("block info: ", read_buf)
+    lastblock = str_be_to_int32_le(read_buf[:4].tostring())
+    blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
+    disk_cap = (lastblock+1) * blocksize
+    dbg("lastblock=", lastblock)
+    dbg("blocksize=", blocksize)
+    dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
+
+    csw_data = eps[1].read(CSW_SIZE)
+    dbg("csw: ", csw_data)
+    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+    dbg("CSW Status=", csw_data[12])
 
     return lastblock, blocksize
 
@@ -104,13 +110,9 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=1500):
     cbw += CBW_CB_LEN + cdb
     cbw += NULL_CHAR * (CBW_SIZE - len(cbw))
 
-    try:
-        ret = ep_out.write(cbw, timeout)
-        assert(ret == len(cbw))
-        dbg("write_cbw: ret=", ret)
-    except USBError as e:
-        warn(get_cur_func_name()+"(): USBError: ", e)
-        return None
+    ret = ep_out.write(cbw, timeout)
+    assert(ret == len(cbw))
+    dbg("write_cbw: ret=", ret)
     return ret
 
 READ_10 = 0x28
@@ -125,16 +127,16 @@ def read_sectors(eps, sector_offset, sector_num, timeout=800):
 
     sector_data = None
 
-    try:
-        ret = write_cbw(eps[0], CBW_FLAG_IN, 
-                    rd_size, cdb, timeout)
-        sector_data = eps[1].read(rd_size, timeout)
-        assert(len(sector_data) == rd_size)
-        csw_data = eps[1].read(CSW_SIZE, timeout)
-        assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-        dbg("CSW Status=", csw_data[12])
-    except USBError as e:
-        warn(get_cur_func_name()+"(): USBError:", e)
+    ret = write_cbw(eps[0], CBW_FLAG_IN, 
+                rd_size, cdb, timeout)
+
+    sector_data = eps[1].read(rd_size, timeout)
+    assert(len(sector_data) == rd_size)
+
+    csw_data = eps[1].read(CSW_SIZE, timeout)
+    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+    dbg("CSW Status=", csw_data[12])
+
     return sector_data
 
 WRITE_10 = 0x2a
@@ -151,19 +153,17 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
     cdb += NULL_CHAR
 
     ret = None
-    try:
-        ret = write_cbw(eps[0], CBW_FLAG_OUT, 
-                wr_size, cdb, timeout)
-        ret = eps[0].write(buf, timeout)
-        dbg("ep wr size:", ret, "/", wr_size)
-        assert(ret == wr_size)
-        csw_data = eps[1].read(CSW_SIZE, timeout)
-        assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-        dbg("CSW Status=", csw_data[12])
-        ret = (csw_data[12] == 0)
-    except USBError as e:
-        warn(get_cur_func_name()+"(): USBError:", e)
-        ret = None
+    ret = write_cbw(eps[0], CBW_FLAG_OUT, 
+            wr_size, cdb, timeout)
+
+    ret = eps[0].write(buf, timeout)
+    dbg("ep wr size:", ret, "/", wr_size)
+    assert(ret == wr_size)
+
+    csw_data = eps[1].read(CSW_SIZE, timeout)
+    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+    dbg("CSW Status=", csw_data[12])
+    ret = (csw_data[12] == 0)
     #except OSError as e:
     #    warn(get_cur_func_name()+"(): OSError: ", e)
 
@@ -216,11 +216,11 @@ def get_usb_dev_eps(dev):
     # get an endpoint instance
     cfg = dev.get_active_configuration()
     dbg("find_im_ldr_usb: cfg=", cfg)
-    interface_number = cfg[(0,0)].bInterfaceNumber
-    alternate_setting = usb.control.get_interface(dev, interface_number)
+    interface_number = 0 # cfg[(0,0)].bInterfaceNumber
+    # alternate_setting = usb.control.get_interface(dev, interface_number)
     intf = usb.util.find_descriptor(
         cfg, bInterfaceNumber = interface_number,
-        bAlternateSetting = alternate_setting
+    #    bAlternateSetting = alternate_setting
     )
 
     eps_out = usb.util.find_descriptor(
@@ -247,7 +247,9 @@ def get_usb_dev_eps(dev):
 
 def find_im_ldr_usb():
     dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
-    return get_usb_dev_eps(dev)
+    eps = get_usb_dev_eps(dev)
+    usb_setup_get_max_lun(eps)
+    return eps
 
 
 if __name__ == "__main__":

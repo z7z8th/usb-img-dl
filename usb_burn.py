@@ -9,40 +9,40 @@ import mmap
 import copy
 import subprocess
 from progress.bar import IncrementalBar
+from usb.core import USBError
 
 from const_vars import *
 from debug_utils import *
 from utils import *
 import mtd_part_alloc
-from py_sg import SCSIError
+from usb_misc import set_dl_img_type
 from usb_generic import read_sectors, write_sectors, write_large_buf, capacity_info
 from usb_erase import *
 
 
 
-def usb_burn_ram_loader_to_ram(eps, img_buf):
+def usb_burn_ram_loader(eps, img_buf):
     dbg("enter: ", get_cur_func_name())
     sys.stdout.flush()
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
     write_large_buf(eps, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
+    info("^^^^^^^ ram loader sent")
     try:
         write_sectors(eps, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
-    except SCSIError as e:
-        #warn("SCSIError", e)
-        pass
-    info("Wait for new ram_loader to take affect")
-    # time.sleep(2)
-    subprocess.Popen(sys.argv, close_fds = True)
-    sys.exit(0)
+    except USBError as e:
+        #warn("USBError", e)
+        warn("Updated ram loader is restarting...")
+    info("Waiting for new ram_loader to take affect")
 
 
 def usb_burn_ram_loader_file_to_ram(eps, loader_path):
     dbg("enter: ", get_cur_func_name())
     if not os.path.exists(loader_path):
         wtf("No such file: ", loader_path)
+    set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
     with open(loader_path, 'rb') as img_fd:
         img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-        usb_burn_ram_loader_to_ram(eps, img_buf)
+        usb_burn_ram_loader(eps, img_buf)
         img_buf.close()
 
 

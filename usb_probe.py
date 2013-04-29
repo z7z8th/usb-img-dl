@@ -11,9 +11,9 @@ import configs
 from const_vars import *
 from debug_utils import *
 from utils import *
-from usb_generic import inquiry_info, read_sectors, write_sectors, capacity_info, find_im_ldr_usb
-from usb_misc import set_dl_img_type
-from usb_burn import usb_burn_ram_loader_file_to_ram
+from usb_generic import inquiry_info, read_sectors, write_sectors, \
+        capacity_info, find_im_ldr_usb
+
 
 ram_loader_major_version = 0
 ram_loader_minor_version = 0
@@ -58,9 +58,8 @@ def check_ram_loader_version(eps, cmd_sector_base):
         info("ROM Type: %s" % version_sector[9:11])
     if version_sector[8] == 2:
         info("Flash Type: %s" % version_sector[9:11])
-        warn("Ram Loader not found. Burn it now!")
-        set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-        usb_burn_ram_loader_file_to_ram(eps, configs.ram_loader_path)
+        configs.ram_loader_need_update = True
+        warn("Ram Loader not found. Please Update!")
     if version_sector[8] == 3:
         ram_loader_major_version = int(version_sector[9:11].tostring())
         ram_loader_minor_version = int(version_sector[12:14].tostring())
@@ -130,6 +129,8 @@ def verify_im_ldr_usb(eps):
         return False
 
     check_ram_loader_version(eps, cmd_sector_base)
+    if configs.ram_loader_need_update:
+        return True
 
     ret = change_to_dl_mode(eps)
     if ret:
