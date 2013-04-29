@@ -398,6 +398,12 @@ def _setup_prototypes(lib):
     lib.libusb_get_port_number.restype = c_uint8
 
     # int libusb_get_port_path (libusb_context *ctx, libusb_device *dev, uint8_t *path, uint8_t path_len)
+    lib.libusb_get_port_path.argtypes = [
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_uint8]
+
 
 
 # check a libusb function call
@@ -471,7 +477,7 @@ class _LibUSB(usb.backend.IBackend):
         dev_desc.bus = _lib.libusb_get_bus_number(dev.devid)
         dev_desc.address = _lib.libusb_get_device_address(dev.devid) 
         dev_desc.port = _lib.libusb_get_port_number(dev.devid)
-        print "in backend>>> ", _lib.libusb_get_port_number(dev.devid)
+        print "in backend>>> ", dev_desc.bus, dev_desc.address, dev_desc.port
         return dev_desc
 
     @methodtrace(_logger)
@@ -523,6 +529,19 @@ class _LibUSB(usb.backend.IBackend):
         _check(_lib.libusb_set_interface_alt_setting(dev_handle,
                                                      intf,
                                                      altsetting))
+
+    @methodtrace(_logger)
+    def get_port_number(self, dev):
+        return _check(_lib.libusb_get_port_number(dev.devid)).value
+
+    @methodtrace(_logger)
+    def get_port_path(self, dev):
+        # path = (c_uint8 * 8)(0,)
+        path = c_void_p()
+        ret = _check(_lib.libusb_get_port_path(None, dev.devid, byref(path), 7))
+        assert(ret.value <= 7)
+        # return path[0:9]
+        return path[0]
 
     @methodtrace(_logger)
     def claim_interface(self, dev_handle, intf):
