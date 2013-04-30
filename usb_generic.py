@@ -56,7 +56,7 @@ def print_inquiry_data(inquiry_buf):
 INQUIRY = 0x12
 INQUIRY_DATA_LEN = 36
 def inquiry_info(eps):
-    dbg("======== inquiry_info")
+    info("======== inquiry_info")
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
 
@@ -78,7 +78,7 @@ def inquiry_info(eps):
 
 READ_CAPACITY = 0x25
 def capacity_info(eps):
-    dbg("======== capacity_info")
+    info("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
 
     ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb)
@@ -202,7 +202,7 @@ def get_port_path(dev):
 
 
 def get_usb_dev_eps(dev):
-    info("~~~~~~~~ find_im_ldr_usb: dev=", dev.__dict__)
+    info("~~~~~~~~ get_usb_dev_eps: dev=", dev.__dict__)
 
     # was it found?
     if dev is None:
@@ -216,7 +216,7 @@ def get_usb_dev_eps(dev):
 
     # get an endpoint instance
     cfg = dev.get_active_configuration()
-    dbg("find_im_ldr_usb: cfg=", cfg)
+    dbg("get_usb_dev_eps: cfg=", cfg)
     interface_number = 0 # cfg[(0,0)].bInterfaceNumber
     # alternate_setting = usb.control.get_interface(dev, interface_number)
     intf = usb.util.find_descriptor(

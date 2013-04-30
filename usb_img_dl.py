@@ -10,8 +10,8 @@ import usb.core
 import libusbx1
 #import signal
 import time
+import traceback
 
-import configs
 import configs
 from const_vars import *
 from debug_utils import *
@@ -162,6 +162,7 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
                     )
 
         dbg("@^" * 30)
+        time.sleep(1)
         assert(len(dev) == 1)
         dev = dev[0]
         dbg(dev.__dict__)
@@ -248,16 +249,23 @@ ldr_processing_set_lock = thread.allocate_lock()
 
 
 def usb_dl_thread_func_wrapper(dev, options, img_buf_dict):
+    is_failed = False
     port_id = None
     port_id = chr(dev.bus) + get_port_path(dev)
     try:
         usb_dl_thread_func(dev, options, img_buf_dict)
+    except Exception as e:
+        is_failed = True
+        traceback.print_exc()
+        # raise e
     finally:
-        warn("Thread finished!")
-
-    warn("*** Remove from running set!")
-    with ldr_processing_set_lock:
-        ldr_processing_set.remove(port_id)
+        port_id_str = "".join("0x%X " % ord(i) for i in port_id)
+        warn("Thread finished! port_id: %s. %s!" % \
+                (port_id_str, "***Failed" if is_failed else "Success"))
+        if options.erase_all and not is_failed:
+            return
+        with ldr_processing_set_lock:
+            ldr_processing_set.remove(port_id)
 
 
 
@@ -343,8 +351,12 @@ def usb_img_dl_main():
     # ms loader
     # dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
     # raw usb loader
-    LDR_ROM_idVendor  = 0x0851
-    LDR_ROM_idProduct = 0x0002
+    if options.erase_all:
+        LDR_ROM_idVendor  = 0x18d1
+        LDR_ROM_idProduct = 0x0fff
+    else:
+        LDR_ROM_idVendor  = 0x0851
+        LDR_ROM_idProduct = 0x0002
 
 
     while True:

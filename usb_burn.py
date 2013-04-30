@@ -69,10 +69,10 @@ def parse_yaffs2_header(header_buf):
     yaffs2_byte_per_chunk = str_le_to_int32_le(header_buf[8:12])
     yaffs2_byte_nand_spare = str_le_to_int32_le(header_buf[12:16])
 
-    dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
-            "chunk_size=%d, spare_size=%d" % \
-            (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
-                yaffs2_byte_nand_spare))
+    # dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
+    #         "chunk_size=%d, spare_size=%d" % \
+    #         (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
+    #             yaffs2_byte_nand_spare))
     header_struct_fmt = 'LLLL'
     yaffs2_img_header = struct.pack(header_struct_fmt, yaffs2_head_id, \
             yaffs2_version, yaffs2_byte_per_chunk, yaffs2_byte_nand_spare)
