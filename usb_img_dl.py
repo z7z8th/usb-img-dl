@@ -7,6 +7,7 @@ import re
 from optparse import OptionParser
 import thread
 import usb.core
+import libusbx1
 #import signal
 import time
 
@@ -15,7 +16,7 @@ import configs
 from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
-from usb_generic import get_usb_dev_eps
+from usb_generic import get_usb_dev_eps, get_port_path
 from usb_probe import verify_im_ldr_usb
 from usb_misc import *
 from usb_burn import *
@@ -128,14 +129,17 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
     if not ret:
         wtf("Unable to verify bootloader.")
 
+    LDR_RAM_idVendor  = 0x18D1
+    LDR_RAM_idProduct = 0x0FFF
     raw_dev_match_dict = {
-            'idVendor'  : 0x18D1, 
-            'idProduct' : 0x0FFF,
-            'bus' : dev.bus,
+            'idVendor'  : LDR_RAM_idVendor, 
+            'idProduct' : LDR_RAM_idProduct,
+            'bus'       : dev.bus,
+            'port_path' : get_port_path(dev)
         }
 
     ################# burn ram loader ################
-    if configs.ram_loader_need_update or \
+    if ret == "ldr-update" or \
             (options.burn_list and 'R' in options.burn_list):
         info("Updating Ram Loader...")
         if 'R' in options.burn_list:
@@ -146,14 +150,20 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
             usb_burn_ram_loader_file_to_ram(eps, configs.ram_loader_path)
         # configs.ram_loader_need_update = False
         dev = None
-        while dev is None:
+        while None == dev or len(dev) < 1:
             time.sleep(0.2)
-            dev = usb.core.find( custom_match = lambda d:   \
+            dev = usb.core.find( find_all = True, 
+                    backend = libusbx1.get_backend(),
+                    custom_match = lambda d:   \
                         ( d.idVendor == raw_dev_match_dict['idVendor'] and \
                             d.idProduct == raw_dev_match_dict['idProduct'] and \
-                            d.bus == raw_dev_match_dict['bus'] )
+                            d.bus == raw_dev_match_dict['bus'] and \
+                            get_port_path(d) == raw_dev_match_dict['port_path'] )
                     )
+
         dbg("@^" * 30)
+        assert(len(dev) == 1)
+        dev = dev[0]
         dbg(dev.__dict__)
         eps = None
         eps = get_usb_dev_eps(dev)
@@ -312,7 +322,12 @@ def usb_img_dl_main():
     # ms loader
     # dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
     # raw usb loader
-    dev_list = usb.core.find(find_all = True, idVendor=0x0851, idProduct=0x0002)
+    LDR_ROM_idVendor  = 0x0851
+    LDR_ROM_idProduct = 0x0002
+    dev_list = usb.core.find(find_all = True, 
+                    backend = libusbx1.get_backend(),
+                    idVendor = LDR_ROM_idVendor,
+                    idProduct = LDR_ROM_idProduct)
     for dev in dev_list:
         dbg("~*" * 20)
         info(dev.__dict__)

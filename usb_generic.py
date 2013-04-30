@@ -12,14 +12,11 @@ import usb.core
 import usb.util
 from usb.core import USBError
 
-def usb_setup_get_max_lun(eps):
+def usb_setup_get_max_lun(dev):
     dbg("----->> get max lun")
-    SETUP_GET_MAX_LUN = '\xA1\xFE\x00\x00\x00\x00\x01\x00'
-    ret = eps[0].write(SETUP_GET_MAX_LUN, 1500)
-    assert(ret == len(SETUP_GET_MAX_LUN))
-    read_buf = eps[1].read(1, 1500)
-    dbg("read_buf: ", read_buf)
-    dbg("-----<< get max lun done")
+    max_lun = dev.ctrl_transfer(0xA1, 0xFE, 0, 0, 1, 1500)
+    assert(1 == len(max_lun))
+    dbg("-----<< get max lun done: ", max_lun)
 
 
 CBW_SIGNATURE = 'USBC'
@@ -63,7 +60,7 @@ def inquiry_info(eps):
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
 
-    ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, 800)
+    ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb)
     dbg("CBW written!")
 
     inquiry_buf = eps[1].read(INQUIRY_DATA_LEN)
@@ -84,7 +81,7 @@ def capacity_info(eps):
     dbg("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
 
-    ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, 800)
+    ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb)
 
     read_buf = eps[1].read(8)
     dbg("block info: ", read_buf)
@@ -112,7 +109,7 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=1500):
 
     ret = ep_out.write(cbw, timeout)
     assert(ret == len(cbw))
-    dbg("write_cbw: ret=", ret)
+    # dbg("write_cbw: ret=", ret)
     return ret
 
 READ_10 = 0x28
@@ -128,21 +125,21 @@ def read_sectors(eps, sector_offset, sector_num, timeout=800):
     sector_data = None
 
     ret = write_cbw(eps[0], CBW_FLAG_IN, 
-                rd_size, cdb, timeout)
+                rd_size, cdb)
 
     sector_data = eps[1].read(rd_size, timeout)
     assert(len(sector_data) == rd_size)
 
     csw_data = eps[1].read(CSW_SIZE, timeout)
     assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    dbg("CSW Status=", csw_data[12])
+    # dbg("CSW Status=", csw_data[12])
 
     return sector_data
 
 WRITE_10 = 0x2a
 def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
-    dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
-            (sector_offset, sector_num, timeout))
+    # dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
+    #         (sector_offset, sector_num, timeout))
     wr_size = sector_num * SECTOR_SIZE
     assert(len(buf) == wr_size)
     cdb = chr(WRITE_10) + NULL_CHAR
@@ -154,15 +151,15 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
 
     ret = None
     ret = write_cbw(eps[0], CBW_FLAG_OUT, 
-            wr_size, cdb, timeout)
+            wr_size, cdb)
 
     ret = eps[0].write(buf, timeout)
-    dbg("ep wr size:", ret, "/", wr_size)
+    # dbg("ep wr size:", ret, "/", wr_size)
     assert(ret == wr_size)
 
     csw_data = eps[1].read(CSW_SIZE, timeout)
     assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    dbg("CSW Status=", csw_data[12])
+    # dbg("CSW Status=", csw_data[12])
     ret = (csw_data[12] == 0)
     #except OSError as e:
     #    warn(get_cur_func_name()+"(): OSError: ", e)
@@ -200,8 +197,12 @@ def write_large_buf(eps, large_buf, sector_offset,
     dbg("End of " + get_cur_func_name())
 
 
+def get_port_path(dev):
+    return dev._ctx.backend.get_port_path(dev._ctx.dev)
+
+
 def get_usb_dev_eps(dev):
-    info("find_im_ldr_usb: dev=", dev)
+    info("~~~~~~~~ find_im_ldr_usb: dev=", dev.__dict__)
 
     # was it found?
     if dev is None:
@@ -246,19 +247,20 @@ def get_usb_dev_eps(dev):
 
 
 def find_im_ldr_usb():
-    dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
-    eps = get_usb_dev_eps(dev)
-    usb_setup_get_max_lun(eps)
-    return eps
+    # dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
+    dev_lst = usb.core.find(find_all=True, idVendor=0x0851, idProduct=0x0002)
+    for dev in dev_lst:
+        usb_setup_get_max_lun(dev)
+        eps = get_usb_dev_eps(dev)
+        print "ep addr: 0x%x, 0x%x " % (eps[0].bEndpointAddress, eps[1].bEndpointAddress)
+        inquiry_info(eps)
+        print(capacity_info(eps))
 
 
 if __name__ == "__main__":
     configs.debug = True
     import sys
 
-    eps = find_im_ldr_usb()
-    assert(eps >= 0)
-    inquiry_info(eps)
-    print(capacity_info(eps))
+    find_im_ldr_usb()
 
 

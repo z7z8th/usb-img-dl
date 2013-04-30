@@ -18,7 +18,6 @@ usb_img_dl_small_version = deprecated_svn_revision
 ram_loader_min_versions = [1, 0, 6]
 ram_loader_integrated_versions = [2, 0, 0]
 INTERGRATED_RAM_LOADER_NAME = "ldr_app-%d.%d.%d.bin" % tuple(ram_loader_integrated_versions)
-ram_loader_need_update = False
 
 ram_loader_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), DATA_DIR,
         INTERGRATED_RAM_LOADER_NAME)

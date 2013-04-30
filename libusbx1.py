@@ -476,8 +476,9 @@ class _LibUSB(usb.backend.IBackend):
         _check(_lib.libusb_get_device_descriptor(dev.devid, byref(dev_desc)))
         dev_desc.bus = _lib.libusb_get_bus_number(dev.devid)
         dev_desc.address = _lib.libusb_get_device_address(dev.devid) 
-        dev_desc.port = _lib.libusb_get_port_number(dev.devid)
-        print "in backend>>> ", dev_desc.bus, dev_desc.address, dev_desc.port
+        # dev_desc.port = _lib.libusb_get_port_number(dev.devid)
+        # dev_desc.port_path = self.get_port_path(dev)
+        # print "in backend>>> ", dev_desc.bus, dev_desc.address, dev_desc.port
         return dev_desc
 
     @methodtrace(_logger)
@@ -536,12 +537,12 @@ class _LibUSB(usb.backend.IBackend):
 
     @methodtrace(_logger)
     def get_port_path(self, dev):
-        # path = (c_uint8 * 8)(0,)
-        path = c_void_p()
-        ret = _check(_lib.libusb_get_port_path(None, dev.devid, byref(path), 7))
-        assert(ret.value <= 7)
-        # return path[0:9]
-        return path[0]
+        PORT_PATH_MAX = 7
+        path = create_string_buffer(PORT_PATH_MAX+1)
+        ret = _check(_lib.libusb_get_port_path(None, dev.devid, 
+                                                path, PORT_PATH_MAX))
+        assert(ret.value <= PORT_PATH_MAX and ret.value >= 0)
+        return path[:ret.value]
 
     @methodtrace(_logger)
     def claim_interface(self, dev_handle, intf):

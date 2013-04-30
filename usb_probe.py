@@ -15,10 +15,6 @@ from usb_generic import inquiry_info, read_sectors, write_sectors, \
         capacity_info, find_im_ldr_usb
 
 
-ram_loader_major_version = 0
-ram_loader_minor_version = 0
-ram_loader_small_version = 0
-
 def check_magic_str(eps, cmd_sector_base):
     #read magic hex, should be 0xdeadbeef
     magic_block = read_sectors(eps, \
@@ -48,19 +44,18 @@ def change_to_dl_mode(eps):
     return ret
 
 def check_ram_loader_version(eps, cmd_sector_base):
-    global ram_loader_major_version
-    global ram_loader_minor_version
-    global ram_loader_small_version
     version_sector = read_sectors( eps, \
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
-    configs.blOneStageReady = False
+    # configs.blOneStageReady = False
+    ret = "ldr-ok"
     if version_sector[8] == 1:
         info("ROM Type: %s" % version_sector[9:11])
-    if version_sector[8] == 2:
+        wtf("Should not come here!")
+    elif version_sector[8] == 2:
         info("Flash Type: %s" % version_sector[9:11])
-        configs.ram_loader_need_update = True
+        ret = "ldr-update"
         warn("Ram Loader not found. Please Update!")
-    if version_sector[8] == 3:
+    elif version_sector[8] == 3:
         ram_loader_major_version = int(version_sector[9:11].tostring())
         ram_loader_minor_version = int(version_sector[12:14].tostring())
         ram_loader_small_version = int(version_sector[15:17].tostring())
@@ -71,14 +66,16 @@ def check_ram_loader_version(eps, cmd_sector_base):
                     ram_loader_small_version]
         if cmp_version(ram_loader_versions, 
                 configs.ram_loader_min_versions) < 0:
-            configs.ram_loader_need_update = True
+            ret = "ldr-update"
             warn("Ram Loader is too old, Please update!")
         elif cmp_version(ram_loader_versions, 
                 configs.ram_loader_integrated_versions) < 0:
-            configs.ram_loader_need_update = False
+            ret = "ldr-update"
             warn("New version of Ram Loader available, will update!")
         else:
             info("Ram Loader is ok!")
+    
+    return ret
 
 
 def get_flash_type(eps, cmd_sector_base):
@@ -128,9 +125,9 @@ def verify_im_ldr_usb(eps):
         warn("Magic string not match, this is ok to ignore")
         return False
 
-    check_ram_loader_version(eps, cmd_sector_base)
-    if configs.ram_loader_need_update:
-        return True
+    ret = check_ram_loader_version(eps, cmd_sector_base)
+    if ret != "ldr-ok":
+        return ret
 
     ret = change_to_dl_mode(eps)
     if ret:
