@@ -241,6 +241,27 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
     warn("\nAll operations Completed!\n")
 
 
+########## Gloable Vars ##########
+ldr_processing_set = set()
+ldr_processing_set_lock = thread.allocate_lock()
+# ldr_processing_set_lock.acquire()
+
+
+def usb_dl_thread_func_wrapper(dev, options, img_buf_dict):
+    port_id = None
+    port_id = chr(dev.bus) + get_port_path(dev)
+    try:
+        usb_dl_thread_func(dev, options, img_buf_dict)
+    finally:
+        warn("Thread finished!")
+
+    warn("*** Remove from running set!")
+    with ldr_processing_set_lock:
+        ldr_processing_set.remove(port_id)
+
+
+
+
 def usb_img_dl_main():
     options, args = parse_options()
     img_paths = args
@@ -324,18 +345,31 @@ def usb_img_dl_main():
     # raw usb loader
     LDR_ROM_idVendor  = 0x0851
     LDR_ROM_idProduct = 0x0002
-    dev_list = usb.core.find(find_all = True, 
-                    backend = libusbx1.get_backend(),
-                    idVendor = LDR_ROM_idVendor,
-                    idProduct = LDR_ROM_idProduct)
-    for dev in dev_list:
-        dbg("~*" * 20)
-        info(dev.__dict__)
-        thread.start_new_thread(usb_dl_thread_func, 
-                                 (dev, options, img_buf_dict))
-    else:
-        #warn("No bootloader device found!")
-        pass
+
+
+    while True:
+        dev_list = usb.core.find(find_all = True, 
+                        backend = libusbx1.get_backend(),
+                        idVendor = LDR_ROM_idVendor,
+                        idProduct = LDR_ROM_idProduct)
+        for dev in dev_list:
+            port_id = chr(dev.bus) + get_port_path(dev)
+            with ldr_processing_set_lock:
+                if port_id in ldr_processing_set:
+                    dbg("*** already in ldr_processing_set")
+                    continue
+
+            dbg("~*" * 20)
+            info(dev.__dict__)
+            with ldr_processing_set_lock:
+                ldr_processing_set.add(port_id)
+                info("ldr_processing_set: ", ldr_processing_set)
+            thread.start_new_thread(usb_dl_thread_func_wrapper, 
+                                    (dev, options, img_buf_dict))
+        else:
+            #warn("No bootloader device found!")
+            pass
+        time.sleep(0.5)
     while True:
         #signal.pause()
         time.sleep(1<<30)
