@@ -8,7 +8,7 @@ import array
 import mmap
 import copy
 import subprocess
-from progress.bar import IncrementalBar
+from progress.bar import Bar
 from usb.core import USBError
 
 from const_vars import *
@@ -126,7 +126,7 @@ def usb_burn_yaffs2(eps, img_buf, mtd_part_start_addr, mtd_part_size):
     size_per_nand_block = size_page_per_nand_block + size_spare_per_nand_block
     assert(isinstance(size_per_nand_block, int))
 
-    progressBar = IncrementalBar('Burning', 
+    progressBar = Bar('Burning', 
             max = max(1, img_total_size/size_per_nand_block),
             suffix='%(percent)d%%')
 

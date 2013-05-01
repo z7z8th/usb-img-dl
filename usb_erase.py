@@ -3,7 +3,7 @@ import os
 import io
 import sys
 import struct
-from progress.bar import IncrementalBar
+from progress.bar import Bar
 
 from const_vars import *
 from debug_utils import *
@@ -26,7 +26,7 @@ def usb_erase_dyn_id(eps, dyn_id):
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
 
     dbg("Erasing dyn id")
-    progressBar = IncrementalBar('Erasing',
+    progressBar = Bar('Erasing',
             max = 2,
             suffix='%(percent)d%%')
     write_sectors(eps, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
@@ -53,7 +53,7 @@ def usb_erase_generic(eps, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     write_sectors(eps, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
 
     dbg("Start to erase")
-    progressBar = IncrementalBar('Erasing', 
+    progressBar = Bar('Erasing', 
             max = max(1, mtd_part_size/NAND_ERASE_MAX_LEN_PER_TIME),
             suffix='%(percent)d%%')
     nand_start_erase_addr = mtd_part_start_addr

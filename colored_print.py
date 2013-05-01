@@ -26,6 +26,10 @@
 from __future__ import print_function
 import os
 
+import platform
+if platform.system() == "Windows":
+    from colorama import init as colorama_init
+    colorama_init()
 
 __ALL__ = [ 'colored', 'cprint' ]
 
@@ -113,6 +117,7 @@ def colored_print(color, bg_color, attrs, *args):
 
 
 if __name__ == "__main__":
+#    colorama_init()
     colored_print('green', None, ['bold'], "Hello world")
     colored_print('blue', 'black', None, "Hello world")
     colored_print('red', 'white', None, "Hello world")
