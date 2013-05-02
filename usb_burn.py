@@ -69,10 +69,10 @@ def parse_yaffs2_header(header_buf):
     yaffs2_byte_per_chunk = str_le_to_int32_le(header_buf[8:12])
     yaffs2_byte_nand_spare = str_le_to_int32_le(header_buf[12:16])
 
-    # dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
-    #         "chunk_size=%d, spare_size=%d" % \
-    #         (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
-    #             yaffs2_byte_nand_spare))
+    dbg("Yaffs2_image_header: head_id=%d, version=%d, "\
+            "chunk_size=%d, spare_size=%d" % \
+            (yaffs2_head_id, yaffs2_version, yaffs2_byte_per_chunk,
+                yaffs2_byte_nand_spare))
     header_struct_fmt = 'LLLL'
     yaffs2_img_header = struct.pack(header_struct_fmt, yaffs2_head_id, \
             yaffs2_version, yaffs2_byte_per_chunk, yaffs2_byte_nand_spare)
@@ -140,9 +140,9 @@ def usb_burn_yaffs2(eps, img_buf, mtd_part_start_addr, mtd_part_size):
             break
         is_last_block = (size_to_write < size_per_nand_block)
         pair_cnt = size_to_write / size_per_pair
-        dbg(get_cur_func_name() + \
-           "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
-           (size_written, size_to_write, pair_cnt))
+        # dbg(get_cur_func_name() + \
+        #    "(): size_written=%.8x, size_to_write=%.8x, pair_cnt=%.2x"%
+        #    (size_written, size_to_write, pair_cnt))
 
         # create buf
         for i in range(pair_cnt):
