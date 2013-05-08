@@ -10,7 +10,8 @@ dev_lst = usb.core.find(find_all=True,
 for d in dev_lst:
     # print d.__dict__
 #    d.get_active_configuration()
-    print "bus: ", d.bus
+    print "vendor:product 0x%x:0x%x" % (d.idVendor, d.idProduct)
+    print "bus: %x" % d.bus
     print "port path:",
     print "".join("%02x " % ord(i) for i in \
                 d._ctx.backend.get_port_path(d._ctx.dev)

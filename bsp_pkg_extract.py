@@ -68,7 +68,7 @@ def bsp_pkg_extract(pkg_path, dest_dir):
             img_type = int(content,16)
             info("img_type=%X='%s'" % ( img_type, img_type_dict[img_type]))
             # copy the img from bsp pkg to file
-            img_file_name = img_type_dict[img_type][4:].lower() + ".img"
+            img_file_name = img_type_dict[img_type][0][4:].lower() + ".img"
             img_file_path = os.path.join(dest_dir, img_file_name)
             info("Output img to: " + img_file_path)
             if os.path.exists(img_file_path):

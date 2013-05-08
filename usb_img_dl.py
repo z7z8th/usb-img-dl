@@ -16,6 +16,7 @@ import configs
 from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
+from bsp_pkg_check import bsp_pkg_check
 from usb_generic import get_usb_dev_eps, get_port_path
 from usb_probe import verify_im_ldr_usb
 from usb_misc import *
@@ -115,6 +116,8 @@ def parse_options():
             help="Output verbose information for debug")
     parser.add_option("-n", "--all-new", action="store_true", dest="all_new",
             help="All ramloader is new")
+    parser.add_option("-p", "--burn-pkg", type="string", dest="pkg_path",
+            help="Burn a whole package")
     return parser.parse_args()
 
 
@@ -145,6 +148,8 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
         }
 
     ################# burn ram loader ################
+    
+    '''
     if False: #ret == "ldr-update" or \
         #    (options.burn_list and 'R' in options.burn_list):
         info("Updating Ram Loader...")
@@ -180,6 +185,7 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
             ret = verify_im_ldr_usb(eps)
             if not ret:
                 wtf("Unable to verify bootloader.")
+    '''
 
 #FIXME: need sleep?
 #    time.sleep(0.5)
@@ -309,6 +315,31 @@ def usb_img_dl_main():
     ####### update call dict ######
     update_type_call_dict()
 
+    ######### burn package #######
+    if options.pkg_path and options.burn_list:
+        wtf("Only one of --burn-pkg and --burn could be given!")
+
+    pkg_img_pos_list = []
+    pkg_buf = None
+
+    if options.pkg_path:
+        if not os.path.exists(options.pkg_path):
+            wtf("Package not found in: ", options.pkg_path)
+        chk_rslt, pkg_img_pos_dict = bsp_pkg_check(options.pkg_path)
+        if not chk_rslt:
+            wtf("Failed to verify bsp package: ", options.pkg_path)
+        warn(pkg_img_pos_dict)
+        # open pkg buffer
+        pkg_fd = open(options.pkg_path, 'rb')
+        pkg_buf = mmap.mmap(pkg_fd.fileno(), 0, access = mmap.ACCESS_READ)
+        # gen burn list
+        options.burn_list = ''
+        for i, pkg_img_pos in pkg_img_pos_dict.items():
+            options.burn_list += img_type_dict[i][1]
+            pkg_img_pos_list.append(pkg_img_pos)
+
+        info("BSP PKG INFO: ", options.burn_list, pkg_img_pos_list)
+
     ################ check dump/erase/burn types ################
     options.burn_list = [] if options.burn_list is None else options.burn_list
     options.erase_list = [] if options.erase_list is None else options.erase_list
@@ -325,7 +356,7 @@ def usb_img_dl_main():
 
     if options.burn_list and len(options.burn_list) != len(burn_list):
         wtf("You have specified duplicated value for --burn")
-    if options.burn_list and len(options.burn_list) != len(args):
+    if options.burn_list and not options.pkg_path and len(options.burn_list) != len(args):
         wtf("You ask to burn %d imgs, but %d path/to/imgs specified." \
               " Their count should equal" % (len(options.burn_list), len(args)) )
 
@@ -343,20 +374,26 @@ def usb_img_dl_main():
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
             info('='*80)
-            info("Load "+type_call_dict[b]['std_name']+": "+img_paths[i])
 
-            if not re.search(type_call_dict[b]['name_pattern'],
-                    os.path.basename(img_paths[i]).lower()):
-                wtf("Image file name pattern not match,",
-                        " you maybe burning the wrong img.",
-                        " file name pattern should be:",
-                        type_call_dict[b]['name_pattern'])
+            if options.pkg_path:
+                info("Load ", type_call_dict[b]['std_name'], "from package.")
+                img_start, img_size = pkg_img_pos_list[i]
+                img_end = img_start + img_size
+                img_buf = pkg_buf[img_start : img_end]
+            else:
+                info("Load ", type_call_dict[b]['std_name'], ": ", img_paths[i])
+                if not re.search(type_call_dict[b]['name_pattern'],
+                        os.path.basename(img_paths[i]).lower()):
+                    wtf("Image file name pattern not match,",
+                            " you maybe burning the wrong img.",
+                            " file name pattern should be:",
+                            type_call_dict[b]['name_pattern'])
 
-            img_fd = open(img_paths[i], 'rb')
-            # Unix version mmap
-            #img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-            # unix/windows mmap
-            img_buf = mmap.mmap(img_fd.fileno(), 0, access = mmap.ACCESS_READ)
+                img_fd = open(img_paths[i], 'rb')
+                # Unix version mmap
+                #img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
+                # unix/windows mmap
+                img_buf = mmap.mmap(img_fd.fileno(), 0, access = mmap.ACCESS_READ)
             img_buf_dict[ type_call_dict[b]['std_name'] ] = img_buf
 
     ################ probe device ################
