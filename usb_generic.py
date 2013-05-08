@@ -8,6 +8,7 @@ from const_vars import *
 from debug_utils import *
 from utils import *
 
+import libusbx1
 import usb.core
 import usb.util
 from usb.core import USBError
@@ -208,6 +209,9 @@ def get_usb_dev_eps(dev):
     if dev is None:
         raise ValueError('Device not found')
 
+    # usb.util.claim_interface(dev, 0)
+    usb_setup_get_max_lun(dev)
+
     # set the active configuration. With no arguments, the first
     # configuration will be the active one
 
@@ -248,11 +252,14 @@ def get_usb_dev_eps(dev):
 
 def find_im_ldr_usb():
     # dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
-    dev_lst = usb.core.find(find_all=True, idVendor=0x0851, idProduct=0x0002)
+    eps_lst = []
+    # dev_lst = usb.core.find(find_all=True, idVendor=0x0851, idProduct=0x0002)
+    dev_lst = usb.core.find(find_all=True, backend=libusbx1.get_backend(),
+                             idVendor=0x18d1, idProduct=0x0fff)
     for dev in dev_lst:
-        usb_setup_get_max_lun(dev)
         eps = get_usb_dev_eps(dev)
         print "ep addr: 0x%x, 0x%x " % (eps[0].bEndpointAddress, eps[1].bEndpointAddress)
+        warn("port path: ", dev.bus, "".join([ "%d " % ord(d) for d in get_port_path(dev) ]))
         inquiry_info(eps)
         print(capacity_info(eps))
 

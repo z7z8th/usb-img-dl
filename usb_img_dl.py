@@ -113,21 +113,27 @@ def parse_options():
             help="Say yes to all additional confirmation. <Currently not used!>")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose",
             help="Output verbose information for debug")
+    parser.add_option("-n", "--all-new", action="store_true", dest="all_new",
+            help="All ramloader is new")
     return parser.parse_args()
 
 
+get_usb_dev_eps_lock = thread.allocate_lock()
 
 
 def usb_dl_thread_func(dev, options, img_buf_dict):
+    global get_usb_dev_eps_lock
     info("\n>>>>>>>>>>>>>>> new dl thread\n")
     ################ get ep out/in of usb device ################
     eps = None
-    eps = get_usb_dev_eps(dev)
-    if eps is None:
-        wtf("Unable to find bootloader.")
-    ret = verify_im_ldr_usb(eps)
-    if not ret:
-        wtf("Unable to verify bootloader.")
+    time.sleep(0.5)
+    with get_usb_dev_eps_lock:
+        eps = get_usb_dev_eps(dev)
+        if eps is None:
+            wtf("Unable to find bootloader.")
+        ret = verify_im_ldr_usb(eps)
+        if not ret:
+            wtf("Unable to verify bootloader.")
 
     LDR_RAM_idVendor  = 0x18D1
     LDR_RAM_idProduct = 0x0FFF
@@ -139,8 +145,8 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
         }
 
     ################# burn ram loader ################
-    if ret == "ldr-update" or \
-            (options.burn_list and 'R' in options.burn_list):
+    if False: #ret == "ldr-update" or \
+        #    (options.burn_list and 'R' in options.burn_list):
         info("Updating Ram Loader...")
         if 'R' in options.burn_list:
             ldr_desc = type_call_dict['R']['std_name']
@@ -167,12 +173,13 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
         dev = dev[0]
         dbg(dev.__dict__)
         eps = None
-        eps = get_usb_dev_eps(dev)
-        if eps is None:
-            wtf("Unable to find bootloader.")
-        ret = verify_im_ldr_usb(eps)
-        if not ret:
-            wtf("Unable to verify bootloader.")
+        with get_usb_dev_eps_lock:
+            eps = get_usb_dev_eps(dev)
+            if eps is None:
+                wtf("Unable to find bootloader.")
+            ret = verify_im_ldr_usb(eps)
+            if not ret:
+                wtf("Unable to verify bootloader.")
 
 #FIXME: need sleep?
 #    time.sleep(0.5)
@@ -249,6 +256,8 @@ ldr_processing_set_lock = thread.allocate_lock()
 
 
 def usb_dl_thread_func_wrapper(dev, options, img_buf_dict):
+    global ldr_processing_set
+    global ldr_processing_set_lock
     is_failed = False
     port_id = None
     port_id = chr(dev.bus) + get_port_path(dev)
@@ -265,12 +274,15 @@ def usb_dl_thread_func_wrapper(dev, options, img_buf_dict):
         if options.erase_all and not is_failed:
             return
         with ldr_processing_set_lock:
-            ldr_processing_set.remove(port_id)
+            if is_failed:
+                ldr_processing_set.remove(port_id)
 
 
 
 
 def usb_img_dl_main():
+    global ldr_processing_set
+    global ldr_processing_set_lock
     options, args = parse_options()
     img_paths = args
     dbg("Options: ", options)
@@ -351,7 +363,7 @@ def usb_img_dl_main():
     # ms loader
     # dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
     # raw usb loader
-    if options.erase_all:
+    if options.erase_all or options.all_new:
         LDR_ROM_idVendor  = 0x18d1
         LDR_ROM_idProduct = 0x0fff
     else:
@@ -360,27 +372,28 @@ def usb_img_dl_main():
 
 
     while True:
-        dev_list = usb.core.find(find_all = True, 
-                        backend = libusbx1.get_backend(),
-                        idVendor = LDR_ROM_idVendor,
-                        idProduct = LDR_ROM_idProduct)
-        for dev in dev_list:
-            port_id = chr(dev.bus) + get_port_path(dev)
-            with ldr_processing_set_lock:
-                if port_id in ldr_processing_set:
-                    dbg("*** already in ldr_processing_set")
-                    continue
+        with get_usb_dev_eps_lock:
+            dev_list = usb.core.find(find_all = True, 
+                            backend = libusbx1.get_backend(),
+                            idVendor = LDR_ROM_idVendor,
+                            idProduct = LDR_ROM_idProduct)
+            for dev in dev_list:
+                port_id = chr(dev.bus) + get_port_path(dev)
+                with ldr_processing_set_lock:
+                    if port_id in ldr_processing_set:
+                        dbg("*** already in ldr_processing_set")
+                        continue
 
-            dbg("~*" * 20)
-            info(dev.__dict__)
-            with ldr_processing_set_lock:
-                ldr_processing_set.add(port_id)
-                info("ldr_processing_set: ", ldr_processing_set)
-            thread.start_new_thread(usb_dl_thread_func_wrapper, 
-                                    (dev, options, img_buf_dict))
-        else:
-            #warn("No bootloader device found!")
-            pass
+                dbg("~*" * 20)
+                info(dev.__dict__)
+                with ldr_processing_set_lock:
+                    ldr_processing_set.add(port_id)
+                    info("ldr_processing_set: ", ldr_processing_set)
+                thread.start_new_thread(usb_dl_thread_func_wrapper, 
+                                        (dev, options, img_buf_dict))
+            else:
+                #warn("No bootloader device found!")
+                pass
         time.sleep(0.5)
     while True:
         #signal.pause()

@@ -1,3 +1,5 @@
+#!env python
+
 import usb.core
 import libusbx1
 
@@ -6,12 +8,12 @@ dev_lst = usb.core.find(find_all=True,
 #        idVendor = 0x0851)
 
 for d in dev_lst:
-    print d.__dict__
+    # print d.__dict__
 #    d.get_active_configuration()
-    print "port num: ", d._ctx.backend.get_port_number(d._ctx.dev)
+    print "bus: ", d.bus
     print "port path:",
     print "".join("%02x " % ord(i) for i in \
                 d._ctx.backend.get_port_path(d._ctx.dev)
             )
-    print '\n', "-" * 40, '\n'
+    print "-" * 40
 
