@@ -74,6 +74,7 @@ def bsp_pkg_extract(pkg_path, dest_dir):
             if os.path.exists(img_file_path):
                 warn("Overwrite img: " + img_file_path)
             img_fd = open(img_file_path, 'wb')
+            info("img start, size:", pkg_fd.tell(), ", ", img_size)
             copy_img_from_pkg(pkg_fd, img_fd, img_size)
             img_fd.close()
 
