@@ -218,6 +218,9 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
     is_failed = False
     start_time = time.time()
     do_profile = options.do_profile
+    port_id_str = "".join("%X." % ord(i) for i in port_id)
+
+    pinfo("New Thread: ", port_id_str)
     if do_profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
@@ -237,11 +240,10 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
             pr.disable()
             pr.print_stats()
 
-        port_id_str = "".join("%X." % ord(i) for i in port_id)
         time_used = time.time() - start_time
         with dl_thread_result_list_lock:
             dl_thread_result_list.append((port_id_str, is_failed, time_used))
-        warn("port_id: %10s %12s. Time used: %3.2d seconds" % \
+        warn("\nport_id: %10s %12s. Time used: %3.2d seconds" % \
                 ( port_id_str, 
                     "***Failed" if is_failed else "Success",
                     time_used))
@@ -420,14 +422,17 @@ def usb_img_dl_main():
             failed_list.append(r[0])
     pinfo()
     pinfo("Maximum time used: %3.2d seconds" % max_time_used)
-    pinfo("Burn result summary: %d Failed, %d Succeed.(Total: %d)" % \
+    pinfo("%d Failed, %d Succeed (%d Total)" % \
             (len(failed_list), 
             len(dl_thread_result_list) - len(failed_list),
             len(dl_thread_result_list))
          )
-    pinfo("Failed List: ".join([r[0] for r in failed_list]))
+    if len(failed_list) > 0:
+        pinfo("Failed List: ", [id for id in failed_list])
 
 
 
 if __name__ == "__main__":
     usb_img_dl_main()
+
+

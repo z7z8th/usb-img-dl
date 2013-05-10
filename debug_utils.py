@@ -17,7 +17,7 @@ def info(*msg):
         colored_print('blue', None, None, *msg)
 
 def pinfo(*msg):
-    colored_print('blue', None, None, *msg)
+    colored_print('green', None, None, *msg)
 
 def warn(*msg):
     colored_print('magenta', None, ['bold'], *msg)
