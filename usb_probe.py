@@ -5,7 +5,6 @@ import sys
 import time
 import glob
 import binascii
-from progress.spinner import Spinner
 
 import configs
 from const_vars import *

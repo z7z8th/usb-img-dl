@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import time
-from progress.bar import Bar
 
 import configs
 from const_vars import *
@@ -177,9 +176,6 @@ def write_large_buf(eps, large_buf, sector_offset,
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
     dbg(get_cur_func_name(), "(): total sector num=",
             (float(img_total_size)/SECTOR_SIZE))
-    progressBar = Bar('Burning',
-            max = max(1, len(large_buf)/size_per_write),
-            suffix='%(percent)d%%')
     size_written = 0
     while size_written < img_total_size:
         buf_end_offset = min(img_total_size, size_written + size_per_write)
@@ -192,9 +188,6 @@ def write_large_buf(eps, large_buf, sector_offset,
         write_sectors(eps, buf, sector_offset, sector_num_write)
         size_written += size_per_write
         sector_offset += sector_num_write
-        if not configs.debug:
-            progressBar.next()
-    progressBar.finish()
     dbg("End of " + get_cur_func_name())
 
 

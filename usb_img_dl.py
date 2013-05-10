@@ -5,12 +5,13 @@ import os
 import sys
 import re
 from optparse import OptionParser
-import thread
+import threading
 import usb.core
 import libusbx1
 #import signal
 import time
 import traceback
+from progress.spinner import Spinner
 
 import configs
 from const_vars import *
@@ -23,8 +24,15 @@ from usb_misc import *
 from usb_burn import *
 
 
-
+########## Gloable Vars ##########
 type_call_dict = {}
+ldr_processing_set = set()
+ldr_processing_set_lock = threading.Lock()
+get_usb_dev_eps_lock = threading.Lock()
+dl_thread_result_list = []
+dl_thread_result_list_lock = threading.Lock()
+
+
 
 def update_type_call_dict():
     global type_call_dict
@@ -118,13 +126,14 @@ def parse_options():
             help="All ramloader is new")
     parser.add_option("-p", "--burn-pkg", type="string", dest="pkg_path",
             help="Burn a whole package")
+    parser.add_option("-t", "--profile", action="store_true", dest="do_profile",
+            help="Run profiler for performance tunning")
     return parser.parse_args()
 
 
-get_usb_dev_eps_lock = thread.allocate_lock()
 
 
-def usb_dl_thread_func(dev, options, img_buf_dict):
+def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     global get_usb_dev_eps_lock
     info("\n>>>>>>>>>>>>>>> new dl thread\n")
     ################ get ep out/in of usb device ################
@@ -138,60 +147,7 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
         if not ret:
             wtf("Unable to verify bootloader.")
 
-    LDR_RAM_idVendor  = 0x18D1
-    LDR_RAM_idProduct = 0x0FFF
-    raw_dev_match_dict = {
-            'idVendor'  : LDR_RAM_idVendor, 
-            'idProduct' : LDR_RAM_idProduct,
-            'bus'       : dev.bus,
-            'port_path' : get_port_path(dev)
-        }
-
-    ################# burn ram loader ################
-    
-    '''
-    if False: #ret == "ldr-update" or \
-        #    (options.burn_list and 'R' in options.burn_list):
-        info("Updating Ram Loader...")
-        if 'R' in options.burn_list:
-            ldr_desc = type_call_dict['R']['std_name']
-            set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-            usb_burn_ram_loader(eps, img_buf_dict[ldr_desc])
-        else:
-            usb_burn_ram_loader_file_to_ram(eps, configs.ram_loader_path)
-        # configs.ram_loader_need_update = False
-        dev = None
-        while None == dev or len(dev) < 1:
-            time.sleep(0.2)
-            dev = usb.core.find( find_all = True, 
-                    backend = libusbx1.get_backend(),
-                    custom_match = lambda d:   \
-                        ( d.idVendor == raw_dev_match_dict['idVendor'] and \
-                            d.idProduct == raw_dev_match_dict['idProduct'] and \
-                            d.bus == raw_dev_match_dict['bus'] and \
-                            get_port_path(d) == raw_dev_match_dict['port_path'] )
-                    )
-
-        dbg("@^" * 30)
-        time.sleep(1)
-        assert(len(dev) == 1)
-        dev = dev[0]
-        dbg(dev.__dict__)
-        eps = None
-        with get_usb_dev_eps_lock:
-            eps = get_usb_dev_eps(dev)
-            if eps is None:
-                wtf("Unable to find bootloader.")
-            ret = verify_im_ldr_usb(eps)
-            if not ret:
-                wtf("Unable to verify bootloader.")
-    '''
-
-#FIXME: need sleep?
-#    time.sleep(0.5)
-
-
-    usb2_start(eps)
+    # usb2_start(eps)
 
     ############### set dl type to flash ###############
     set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
@@ -250,40 +206,45 @@ def usb_dl_thread_func(dev, options, img_buf_dict):
 
             info("\n;-) Burn %s succeed!\n" % burn_desc)
 
-    usb2_end(eps)
+    # usb2_end(eps)
     
-    warn("\nAll operations Completed!\n")
+    info("\nAll operations Completed!\n")
 
 
-########## Gloable Vars ##########
-ldr_processing_set = set()
-ldr_processing_set_lock = thread.allocate_lock()
-# ldr_processing_set_lock.acquire()
 
-
-def usb_dl_thread_func_wrapper(dev, options, img_buf_dict):
+def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
     global ldr_processing_set
     global ldr_processing_set_lock
     is_failed = False
-    port_id = None
-    port_id = chr(dev.bus) + get_port_path(dev)
+    start_time = time.time()
+    do_profile = options.do_profile
+    if do_profile:
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
+
     try:
-        usb_dl_thread_func(dev, options, img_buf_dict)
+        if do_profile:
+            pr.runcall(usb_dl_thread_func, dev, port_id, options, img_buf_dict)
+
+        usb_dl_thread_func(dev, port_id, options, img_buf_dict)
     except Exception as e:
         is_failed = True
         traceback.print_exc()
         # raise e
     finally:
-        port_id_str = "".join("0x%X " % ord(i) for i in port_id)
-        warn("Thread finished! port_id: %s. %s!" % \
-                (port_id_str, "***Failed" if is_failed else "Success"))
-        if options.erase_all and not is_failed:
-            return
-        with ldr_processing_set_lock:
-            if is_failed:
-                ldr_processing_set.remove(port_id)
+        if do_profile:
+            pr.disable()
+            pr.print_stats()
 
-
+        port_id_str = "".join("%X." % ord(i) for i in port_id)
+        time_used = time.time() - start_time
+        with dl_thread_result_list_lock:
+            dl_thread_result_list.append((port_id_str, is_failed, time_used))
+        warn("port_id: %10s %12s. Time used: %3.2d seconds" % \
+                ( port_id_str, 
+                    "***Failed" if is_failed else "Success",
+                    time_used))
 
 
 def usb_img_dl_main():
@@ -328,7 +289,7 @@ def usb_img_dl_main():
         chk_rslt, pkg_img_pos_dict = bsp_pkg_check(options.pkg_path)
         if not chk_rslt:
             wtf("Failed to verify bsp package: ", options.pkg_path)
-        warn(pkg_img_pos_dict)
+        info(pkg_img_pos_dict)
         # open pkg buffer
         pkg_fd = open(options.pkg_path, 'rb')
         pkg_buf = mmap.mmap(pkg_fd.fileno(), 0, access = mmap.ACCESS_READ)
@@ -400,41 +361,72 @@ def usb_img_dl_main():
     # ms loader
     # dev_list = usb.core.find(find_all = True, idVendor=0x18D1, idProduct=0x0FFF)
     # raw usb loader
-    if options.erase_all or options.all_new:
-        LDR_ROM_idVendor  = 0x18d1
-        LDR_ROM_idProduct = 0x0fff
-    else:
-        LDR_ROM_idVendor  = 0x0851
-        LDR_ROM_idProduct = 0x0002
+    LDR_ROM_idVendor  = 0x18d1
+    LDR_ROM_idProduct = 0x0fff
+
+    dl_thread_list = []
 
 
+    with get_usb_dev_eps_lock:
+        dev_list = usb.core.find(find_all = True, 
+                        backend = libusbx1.get_backend(),
+                        idVendor = LDR_ROM_idVendor,
+                        idProduct = LDR_ROM_idProduct)
+        if len(dev_list) == 0:
+            err("No Device Found!")
+        for dev in dev_list:
+            # FIXME: host may have more than 16 buses
+            port_id = chr(dev.bus) + get_port_path(dev)
+            with ldr_processing_set_lock:
+                if port_id in ldr_processing_set:
+                    dbg("*** already in ldr_processing_set")
+                    continue
+
+            dbg("~*" * 20)
+            info(dev.__dict__)
+            with ldr_processing_set_lock:
+                ldr_processing_set.add(port_id)
+                info("ldr_processing_set after added: ", ldr_processing_set)
+
+            dl_thread = threading.Thread(target = usb_dl_thread_func_wrapper, 
+                                    name = port_id,
+                                    args = (dev, port_id, options, img_buf_dict))
+            dl_thread_list.append(dl_thread)
+            dl_thread.start()
+        else:
+            #warn("No bootloader device found!")
+            pass
+
+    sprogress = Spinner()
     while True:
-        with get_usb_dev_eps_lock:
-            dev_list = usb.core.find(find_all = True, 
-                            backend = libusbx1.get_backend(),
-                            idVendor = LDR_ROM_idVendor,
-                            idProduct = LDR_ROM_idProduct)
-            for dev in dev_list:
-                port_id = chr(dev.bus) + get_port_path(dev)
-                with ldr_processing_set_lock:
-                    if port_id in ldr_processing_set:
-                        dbg("*** already in ldr_processing_set")
-                        continue
-
-                dbg("~*" * 20)
-                info(dev.__dict__)
-                with ldr_processing_set_lock:
-                    ldr_processing_set.add(port_id)
-                    info("ldr_processing_set: ", ldr_processing_set)
-                thread.start_new_thread(usb_dl_thread_func_wrapper, 
-                                        (dev, options, img_buf_dict))
+        with dl_thread_result_list_lock:
+            if len(dl_thread_result_list) < len(dl_thread_list):
+                sprogress.next()
             else:
-                #warn("No bootloader device found!")
-                pass
-        time.sleep(0.5)
-    while True:
-        #signal.pause()
-        time.sleep(1<<30)
+                break
+        time.sleep(1)
+    sprogress.finish()
+
+    for t in dl_thread_list:
+        t.join()
+
+    assert(len(dl_thread_list) == len(dl_thread_result_list))
+
+    max_time_used = 0
+    failed_list = []
+    for r in dl_thread_result_list:
+        max_time_used = max(max_time_used, r[2])
+        if r[1]:
+            failed_list.append(r[0])
+    pinfo()
+    pinfo("Maximum time used: %3.2d seconds" % max_time_used)
+    pinfo("Burn result summary: %d Failed, %d Succeed.(Total: %d)" % \
+            (len(failed_list), 
+            len(dl_thread_result_list) - len(failed_list),
+            len(dl_thread_result_list))
+         )
+    pinfo("Failed List: ".join([r[0] for r in failed_list]))
+
 
 
 if __name__ == "__main__":
