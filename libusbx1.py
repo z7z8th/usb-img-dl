@@ -541,7 +541,6 @@ class _LibUSB(usb.backend.IBackend):
         path = create_string_buffer(PORT_PATH_MAX+1)
         ret = _check(_lib.libusb_get_port_path(None, dev.devid, 
                                                 path, PORT_PATH_MAX))
-        assert(ret.value <= PORT_PATH_MAX and ret.value >= 0)
         return path[:ret.value]
 
     @methodtrace(_logger)
