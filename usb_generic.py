@@ -12,9 +12,12 @@ import usb.core
 import usb.util
 from usb.core import USBError
 
+DEFAULT_TIMEOUT = 10*1000
+RETRY_MAX = 30
+
 def usb_setup_get_max_lun(dev):
     dbg("----->> get max lun")
-    max_lun = dev.ctrl_transfer(0xA1, 0xFE, 0, 0, 1, 1500)
+    max_lun = dev.ctrl_transfer(0xA1, 0xFE, 0, 0, 1, DEFAULT_TIMEOUT)
     assert(1 == len(max_lun))
     dbg("-----<< get max lun done: ", max_lun)
 
@@ -55,52 +58,71 @@ def print_inquiry_data(inquiry_buf):
 
 INQUIRY = 0x12
 INQUIRY_DATA_LEN = 36
-def inquiry_info(eps):
+def inquiry_info(eps, timeout = DEFAULT_TIMEOUT):
     info("======== inquiry_info")
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
 
-    ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb)
-    dbg("CBW written!")
+    ri = 0
+    while ri < RETRY_MAX:
+        ret = None
+        try:
+            ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, timeout)
+            dbg("CBW written!")
 
-    inquiry_buf = eps[1].read(INQUIRY_DATA_LEN)
-    dbg("inquiry_buf=", inquiry_buf)
-    dbg("inquiry info read!")
-    ret_buf = print_inquiry_data(inquiry_buf)
+            inquiry_buf = eps[1].read(INQUIRY_DATA_LEN, timeout)
+            dbg("inquiry_buf=", inquiry_buf)
+            dbg("inquiry info read!")
+            ret_buf = print_inquiry_data(inquiry_buf)
 
-    csw_data = eps[1].read(CSW_SIZE)
-    dbg("CSW read:", csw_data)
-    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    dbg("CSW Status=", csw_data[12])
-    assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
-    return ret_buf
+            csw_data = eps[1].read(CSW_SIZE, timeout)
+            dbg("CSW read:", csw_data)
+            assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+            dbg("CSW Status=", csw_data[12])
+            assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
+        except Exception as e:
+            ri += 1
+            warn("inquiry_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            continue
+        return ret_buf
+
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 
 READ_CAPACITY = 0x25
-def capacity_info(eps):
+def capacity_info(eps, timeout = DEFAULT_TIMEOUT):
     info("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
 
-    ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb)
+    ri = 0
+    while ri < RETRY_MAX:
+        ret = None
+        try:
+            ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, timeout)
 
-    read_buf = eps[1].read(8)
-    dbg("block info: ", read_buf)
-    lastblock = str_be_to_int32_le(read_buf[:4].tostring())
-    blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
-    disk_cap = (lastblock+1) * blocksize
-    dbg("lastblock=", lastblock)
-    dbg("blocksize=", blocksize)
-    dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
+            read_buf = eps[1].read(8, timeout)
+            dbg("block info: ", read_buf)
+            lastblock = str_be_to_int32_le(read_buf[:4].tostring())
+            blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
+            disk_cap = (lastblock+1) * blocksize
+            dbg("lastblock=", lastblock)
+            dbg("blocksize=", blocksize)
+            dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
 
-    csw_data = eps[1].read(CSW_SIZE)
-    dbg("csw: ", csw_data)
-    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    dbg("CSW Status=", csw_data[12])
+            csw_data = eps[1].read(CSW_SIZE, timeout)
+            dbg("csw: ", csw_data)
+            assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+            dbg("CSW Status=", csw_data[12])
+        except Exception as e:
+            ri += 1
+            warn("capacity_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            continue
+        return lastblock, blocksize
 
-    return lastblock, blocksize
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 
-def write_cbw(ep_out, direction, data_len, cdb, timeout=1500):
+def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
     cbw_data_len = int32_le_to_str_le(data_len)
 
     cbw = CBW_SIGNATURE + CBW_TAG + cbw_data_len + direction + CBW_LUN
@@ -113,7 +135,7 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=1500):
     return ret
 
 READ_10 = 0x28
-def read_sectors(eps, sector_offset, sector_num, timeout=800):
+def read_sectors(eps, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     rd_size = sector_num * SECTOR_SIZE
     cdb = chr(READ_10) + NULL_CHAR
     cdb += int32_le_to_str_be(sector_offset)
@@ -124,20 +146,29 @@ def read_sectors(eps, sector_offset, sector_num, timeout=800):
 
     sector_data = None
 
-    ret = write_cbw(eps[0], CBW_FLAG_IN, 
-                rd_size, cdb)
+    ri = 0
+    while ri < RETRY_MAX:
+        ret = None
+        try:
+            ret = write_cbw(eps[0], CBW_FLAG_IN, 
+                        rd_size, cdb, timeout)
 
-    sector_data = eps[1].read(rd_size, timeout)
-    assert(len(sector_data) == rd_size)
+            sector_data = eps[1].read(rd_size, timeout)
+            assert(len(sector_data) == rd_size)
 
-    csw_data = eps[1].read(CSW_SIZE, timeout)
-    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    # dbg("CSW Status=", csw_data[12])
+            csw_data = eps[1].read(CSW_SIZE, timeout)
+            assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+            # dbg("CSW Status=", csw_data[12])
+        except Exception as e:
+            ri += 1
+            warn("read_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            continue
+        return sector_data
 
-    return sector_data
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 WRITE_10 = 0x2a
-def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
+def write_sectors(eps, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     # dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
     #         (sector_offset, sector_num, timeout))
     wr_size = sector_num * SECTOR_SIZE
@@ -149,25 +180,34 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=1500):
     cdb += chr(sector_num & 0xFF)
     cdb += NULL_CHAR
 
-    ret = None
-    ret = write_cbw(eps[0], CBW_FLAG_OUT, 
-            wr_size, cdb)
+    ri = 0
+    while ri < RETRY_MAX:
+        ret = None
+        try:
+            ret = write_cbw(eps[0], CBW_FLAG_OUT, 
+                    wr_size, cdb, timeout)
 
-    ret = eps[0].write(buf, timeout)
-    # dbg("ep wr size:", ret, "/", wr_size)
-    assert(ret == wr_size)
+            ret = eps[0].write(buf, timeout)
+            # dbg("ep wr size:", ret, "/", wr_size)
+            assert(ret == wr_size)
 
-    csw_data = eps[1].read(CSW_SIZE, timeout)
-    assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-    # dbg("CSW Status=", csw_data[12])
-    ret = (csw_data[12] == 0)
-    #except OSError as e:
-    #    warn(get_cur_func_name()+"(): OSError: ", e)
+            csw_data = eps[1].read(CSW_SIZE, timeout)
+            assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+            # dbg("CSW Status=", csw_data[12])
+            ret = (csw_data[12] == 0)
+            #except OSError as e:
+            #    warn(get_cur_func_name()+"(): OSError: ", e)
 
-    # sleep for yaffs2 tragedy, I think it's not need
-    # the tragedy should be caused by multi process access
-    #time.sleep(0.005)
-    return ret
+            # sleep for yaffs2 tragedy, I think it's not need
+            # the tragedy should be caused by multi process access
+            #time.sleep(0.005)
+        except Exception as e:
+            ri += 1
+            warn("write_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            continue
+        return ret
+
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 
 def write_large_buf(eps, large_buf, sector_offset,
@@ -253,7 +293,9 @@ def find_im_ldr_usb():
         eps = get_usb_dev_eps(dev)
         print "ep addr: 0x%x, 0x%x " % (eps[0].bEndpointAddress, eps[1].bEndpointAddress)
         warn("port path: ", dev.bus, "".join([ "%d " % ord(d) for d in get_port_path(dev) ]))
+        # time.sleep(2)
         inquiry_info(eps)
+        # time.sleep(2)
         print(capacity_info(eps))
 
 

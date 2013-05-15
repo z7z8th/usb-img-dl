@@ -8,7 +8,7 @@ from const_vars import *
 from debug_utils import *
 from utils import *
 import mtd_part_alloc
-from usb_generic import read_sectors, write_sectors, capacity_info
+from usb_generic import write_sectors, capacity_info
 
 
 def usb_erase_dyn_id(eps, dyn_id):
