@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import time
+import traceback
 
 import configs
 from const_vars import *
@@ -12,14 +13,37 @@ import usb.core
 import usb.util
 from usb.core import USBError
 
-DEFAULT_TIMEOUT = 10*1000
+class UsbDlDev:
+    def __init__(self, ep_out, ep_in, dev):
+        self.ep_out = ep_out
+        self.ep_in = ep_in
+        self.dev = dev
+
+
+DEFAULT_TIMEOUT = 8*1000
+MAX_TIMEOUT     = 20*1000
 RETRY_MAX = 30
+
+test_stall_done = 0
 
 def usb_setup_get_max_lun(dev):
     dbg("----->> get max lun")
     max_lun = dev.ctrl_transfer(0xA1, 0xFE, 0, 0, 1, DEFAULT_TIMEOUT)
     assert(1 == len(max_lun))
     dbg("-----<< get max lun done: ", max_lun)
+
+
+def usb_clear_ep_stall(dev, ep_num = 0x86):
+    #return
+    dbg("----->> clear ep stall")
+    dev.ctrl_transfer(0x02, 0x01, 0, ep_num, '', DEFAULT_TIMEOUT)
+    dbg("-----<< clear ep stall done: 0x%x" % ep_num)
+
+
+def test_clear_stall(dev, ep_num = 0x86):
+    for i in range(10):
+        dbg("===>> ", i)
+        usb_clear_ep_stall(dev, ep_num)
 
 
 CBW_SIGNATURE = 'USBC'
@@ -32,7 +56,7 @@ CBW_CB_LEN    = '\x0A'
 CBW_SIZE      = 31
 
 CSW_SIGNATURE = 'USBS'
-CSW_SIZE      = 13
+CSW_SIZE      = 13  # lite to 13
 
 def print_inquiry_data(inquiry_buf):
     assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
@@ -58,7 +82,7 @@ def print_inquiry_data(inquiry_buf):
 
 INQUIRY = 0x12
 INQUIRY_DATA_LEN = 36
-def inquiry_info(eps, timeout = DEFAULT_TIMEOUT):
+def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
     info("======== inquiry_info")
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
@@ -67,22 +91,29 @@ def inquiry_info(eps, timeout = DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
-            ret = write_cbw(eps[0], CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, timeout)
+            ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, timeout)
             dbg("CBW written!")
 
-            inquiry_buf = eps[1].read(INQUIRY_DATA_LEN, timeout)
+            inquiry_buf = usbdldev.ep_in.read(INQUIRY_DATA_LEN, timeout)
             dbg("inquiry_buf=", inquiry_buf)
             dbg("inquiry info read!")
             ret_buf = print_inquiry_data(inquiry_buf)
 
-            csw_data = eps[1].read(CSW_SIZE, timeout)
+            if ri > 0:
+                dbg("*** sleep while retry")
+                time.sleep(2)
+            csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
             dbg("CSW read:", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-            dbg("CSW Status=", csw_data[12])
+            assert(csw_data[12] == 0)
+            #dbg("CSW Status=", csw_data[12])
             assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
         except Exception as e:
+            traceback.print_exc()
             ri += 1
             warn("inquiry_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            usb_clear_ep_stall(usbdldev.dev)
+            time.sleep(0.1)
             continue
         return ret_buf
 
@@ -90,7 +121,7 @@ def inquiry_info(eps, timeout = DEFAULT_TIMEOUT):
 
 
 READ_CAPACITY = 0x25
-def capacity_info(eps, timeout = DEFAULT_TIMEOUT):
+def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
     info("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
 
@@ -98,9 +129,9 @@ def capacity_info(eps, timeout = DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
-            ret = write_cbw(eps[0], CBW_FLAG_IN, 8, cdb, timeout)
+            ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, 8, cdb, timeout)
 
-            read_buf = eps[1].read(8, timeout)
+            read_buf = usbdldev.ep_in.read(8, timeout)
             dbg("block info: ", read_buf)
             lastblock = str_be_to_int32_le(read_buf[:4].tostring())
             blocksize = str_be_to_int32_le(read_buf[4:8].tostring())
@@ -109,13 +140,20 @@ def capacity_info(eps, timeout = DEFAULT_TIMEOUT):
             dbg("blocksize=", blocksize)
             dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
 
-            csw_data = eps[1].read(CSW_SIZE, timeout)
+            if ri > 0:
+                dbg("*** sleep while retry")
+                time.sleep(2)
+            csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
             dbg("csw: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-            dbg("CSW Status=", csw_data[12])
+            assert(csw_data[12] == 0)
+            #dbg("CSW Status=", csw_data[12])
         except Exception as e:
+            traceback.print_exc()
             ri += 1
             warn("capacity_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            usb_clear_ep_stall(usbdldev.dev)
+            time.sleep(0.1)
             continue
         return lastblock, blocksize
 
@@ -135,7 +173,9 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
     return ret
 
 READ_10 = 0x28
-def read_sectors(eps, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+    traceback.print_exc()
+    timeout = min(MAX_TIMEOUT, timeout * sector_num)
     rd_size = sector_num * SECTOR_SIZE
     cdb = chr(READ_10) + NULL_CHAR
     cdb += int32_le_to_str_be(sector_offset)
@@ -150,25 +190,35 @@ def read_sectors(eps, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
-            ret = write_cbw(eps[0], CBW_FLAG_IN, 
+            ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, 
                         rd_size, cdb, timeout)
 
-            sector_data = eps[1].read(rd_size, timeout)
+            sector_data = usbdldev.ep_in.read(rd_size, timeout)
+            dbg("sector_data: (%d):" % rd_size, sector_data)
             assert(len(sector_data) == rd_size)
 
-            csw_data = eps[1].read(CSW_SIZE, timeout)
+            if ri > 0:
+                dbg("*** sleep while retry")
+                time.sleep(2)
+            csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
+            dbg("csw_data: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
+            assert(csw_data[12] == 0)
             # dbg("CSW Status=", csw_data[12])
         except Exception as e:
+            traceback.print_exc()
             ri += 1
             warn("read_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            usb_clear_ep_stall(usbdldev.dev)
+            time.sleep(0.1)
             continue
         return sector_data
 
     raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 WRITE_10 = 0x2a
-def write_sectors(eps, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+    timeout = min(MAX_TIMEOUT, timeout * sector_num)
     # dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
     #         (sector_offset, sector_num, timeout))
     wr_size = sector_num * SECTOR_SIZE
@@ -184,33 +234,39 @@ def write_sectors(eps, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
-            ret = write_cbw(eps[0], CBW_FLAG_OUT, 
+            ret = write_cbw(usbdldev.ep_out, CBW_FLAG_OUT, 
                     wr_size, cdb, timeout)
 
-            ret = eps[0].write(buf, timeout)
+            ret = usbdldev.ep_out.write(buf, timeout)
             # dbg("ep wr size:", ret, "/", wr_size)
             assert(ret == wr_size)
 
-            csw_data = eps[1].read(CSW_SIZE, timeout)
+            if ri > 0:
+                dbg("*** sleep while retry")
+                time.sleep(2)
+            csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
+            dbg("csw_data: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
-            # dbg("CSW Status=", csw_data[12])
-            ret = (csw_data[12] == 0)
-            #except OSError as e:
-            #    warn(get_cur_func_name()+"(): OSError: ", e)
+            assert(csw_data[12] == 0)
+            #dbg("CSW Status=", csw_data[12])
+            #ret = (csw_data[12] == 0)
 
             # sleep for yaffs2 tragedy, I think it's not need
             # the tragedy should be caused by multi process access
             #time.sleep(0.005)
         except Exception as e:
+            traceback.print_exc()
             ri += 1
             warn("write_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            usb_clear_ep_stall(usbdldev.dev)
+            time.sleep(0.1)
             continue
         return ret
 
     raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 
-def write_large_buf(eps, large_buf, sector_offset,
+def write_large_buf(usbdldev, large_buf, sector_offset,
         size_per_write = SIZE_PER_WRITE):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
@@ -225,7 +281,7 @@ def write_large_buf(eps, large_buf, sector_offset,
         buf_len = buf_end_offset - size_written
         if buf_len < size_per_write:
             buf += NULL_CHAR * (sector_num_write*SECTOR_SIZE - buf_len)
-        write_sectors(eps, buf, sector_offset, sector_num_write)
+        write_sectors(usbdldev, buf, sector_offset, sector_num_write)
         size_written += size_per_write
         sector_offset += sector_num_write
     dbg("End of " + get_cur_func_name())
@@ -234,6 +290,8 @@ def write_large_buf(eps, large_buf, sector_offset,
 def get_port_path(dev):
     return dev._ctx.backend.get_port_path(dev._ctx.dev)
 
+def usb_set_debug(level):
+    return libusbx1.get_backend().set_debug(level)
 
 def get_usb_dev_eps(dev):
     info("~~~~~~~~ get_usb_dev_eps: dev=", dev.__dict__)
@@ -249,9 +307,10 @@ def get_usb_dev_eps(dev):
     # configuration will be the active one
 
     # ram loader can not accept set-config twice, 1 by driver, 1 by pyusb
-    # dev.set_configuration()
+    #dev.set_configuration()
 
     # get an endpoint instance
+    #cfg = dev._ctx.backend.get_configuration(dev._ctx.dev.devid)
     cfg = dev.get_active_configuration()
     dbg("get_usb_dev_eps: cfg=", cfg)
     interface_number = 0 # cfg[(0,0)].bInterfaceNumber
@@ -261,7 +320,7 @@ def get_usb_dev_eps(dev):
     #    bAlternateSetting = alternate_setting
     )
 
-    eps_out = usb.util.find_descriptor(
+    ep_out = usb.util.find_descriptor(
         intf,
         # match the first OUT endpoint
         custom_match = \
@@ -269,8 +328,8 @@ def get_usb_dev_eps(dev):
             usb.util.endpoint_direction(e.bEndpointAddress) == \
             usb.util.ENDPOINT_OUT
     )
-    assert eps_out is not None
-    eps_in = usb.util.find_descriptor(
+    assert ep_out is not None
+    ep_in = usb.util.find_descriptor(
         intf,
         # match the first OUT endpoint
         custom_match = \
@@ -279,30 +338,37 @@ def get_usb_dev_eps(dev):
             usb.util.ENDPOINT_IN
     )
 
-    assert eps_in is not None
-    return [eps_out, eps_in]
+    assert ep_in is not None
+    usbdldev = UsbDlDev(ep_out, ep_in, dev)
+    return usbdldev
 
 
 def find_im_ldr_usb():
     # dev = usb.core.find(idVendor=0x18D1, idProduct=0x0FFF)
-    eps_lst = []
     # dev_lst = usb.core.find(find_all=True, idVendor=0x0851, idProduct=0x0002)
     dev_lst = usb.core.find(find_all=True, backend=libusbx1.get_backend(),
                              idVendor=0x18d1, idProduct=0x0fff)
     for dev in dev_lst:
-        eps = get_usb_dev_eps(dev)
-        print "ep addr: 0x%x, 0x%x " % (eps[0].bEndpointAddress, eps[1].bEndpointAddress)
+        usbdldev = get_usb_dev_eps(dev)
+        print "ep addr: 0x%x, 0x%x " % (usbdldev.ep_out.bEndpointAddress, usbdldev.ep_in.bEndpointAddress)
         warn("port path: ", dev.bus, "".join([ "%d " % ord(d) for d in get_port_path(dev) ]))
         # time.sleep(2)
-        inquiry_info(eps)
+        ##### test clear stall ######
+        #usb_clear_ep_stall(usbdldev.dev)
+        #traceback.print_exc()
+        test_clear_stall(usbdldev.dev)
+        #return
+        inquiry_info(usbdldev)
         # time.sleep(2)
-        print(capacity_info(eps))
+        print(capacity_info(usbdldev))
+        return usbdldev
 
 
 if __name__ == "__main__":
     configs.debug = True
     import sys
 
+    usb_set_debug(3)
     find_im_ldr_usb()
 
 

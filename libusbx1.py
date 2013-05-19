@@ -544,6 +544,10 @@ class _LibUSB(usb.backend.IBackend):
         return path[:ret.value]
 
     @methodtrace(_logger)
+    def set_debug(self, level):
+        _check(_lib.libusb_set_debug(None, level))
+
+    @methodtrace(_logger)
     def claim_interface(self, dev_handle, intf):
         _check(_lib.libusb_claim_interface(dev_handle, intf))
 

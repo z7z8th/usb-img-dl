@@ -137,20 +137,20 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     global get_usb_dev_eps_lock
     info("\n>>>>>>>>>>>>>>> new dl thread\n")
     ################ get ep out/in of usb device ################
-    eps = None
+    usbdldev = None
     time.sleep(0.5)
     with get_usb_dev_eps_lock:
-        eps = get_usb_dev_eps(dev)
-        if eps is None:
+        usbdldev = get_usb_dev_eps(dev)
+        if usbdldev is None:
             wtf("Unable to find bootloader.")
-        ret = verify_im_ldr_usb(eps)
+        ret = verify_im_ldr_usb(usbdldev)
         if not ret:
             wtf("Unable to verify bootloader.")
 
-    # usb2_start(eps)
+    # usb2_start(usbdldev)
 
     ############### set dl type to flash ###############
-    set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+    set_dl_img_type(usbdldev, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
 
     ################# dump ################
     for d in options.dump_list:
@@ -163,7 +163,7 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     assert(not (options.erase_all and len(options.erase_list)>0))
     if options.erase_all:
         info("Erase whole nand Flash!")
-        usb_erase_whole_nand_flash(eps)
+        usb_erase_whole_nand_flash(usbdldev)
     else:
         for e in options.erase_list:
             erase_desc = type_call_dict[e]['std_name']
@@ -171,13 +171,13 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
             info('='*80)
             info("Erase " + erase_desc)
             if erase_type == 'dyn_id':
-                usb_erase_dyn_id(eps, type_call_dict[e]['func_params'])
+                usb_erase_dyn_id(usbdldev, type_call_dict[e]['func_params'])
             elif type_call_dict[e]['img_type'] == 'raw':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_generic(eps, erase_offset, erase_length, is_yaffs2=False)
+                usb_erase_generic(usbdldev, erase_offset, erase_length, is_yaffs2=False)
             elif type_call_dict[e]['img_type'] == 'yaffs2':
                 erase_offset, erase_length = type_call_dict[e]['func_params']
-                usb_erase_generic(eps, erase_offset, erase_length, is_yaffs2=True)
+                usb_erase_generic(usbdldev, erase_offset, erase_length, is_yaffs2=True)
             else:
                 wtf("Unknown img type")
             info("\n;-) Erase %s succeed!" % erase_desc)
@@ -185,28 +185,28 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     ################ burn ################
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
-            # set_dl_img_type(eps, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+            # set_dl_img_type(usbdldev, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
             time.sleep(0.5)
 
             burn_desc = type_call_dict[b]['std_name']
             burn_type = type_call_dict[b]['img_type']
             if burn_type == 'dyn_id':
-                usb_burn_dyn_id(eps, img_buf_dict[burn_desc], 
+                usb_burn_dyn_id(usbdldev, img_buf_dict[burn_desc], 
                         type_call_dict[b]['func_params'])
             elif burn_type == 'raw':
                 burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                usb_burn_raw(eps, img_buf_dict[burn_desc], 
+                usb_burn_raw(usbdldev, img_buf_dict[burn_desc], 
                         burn_offset, burn_lenght)
             elif burn_type == 'yaffs2':
                 burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                usb_burn_yaffs2(eps, img_buf_dict[burn_desc], 
+                usb_burn_yaffs2(usbdldev, img_buf_dict[burn_desc], 
                         burn_offset, burn_lenght)
             else:
                 wtf("Unknown img type")
 
             info("\n;-) Burn %s succeed!\n" % burn_desc)
 
-    # usb2_end(eps)
+    # usb2_end(usbdldev)
     
     info("\nAll operations Completed!\n")
 
@@ -433,6 +433,7 @@ def usb_img_dl_main():
 
 
 if __name__ == "__main__":
+#    usb_set_debug(3)
     usb_img_dl_main()
 
 

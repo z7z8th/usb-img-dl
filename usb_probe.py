@@ -14,9 +14,9 @@ from usb_generic import inquiry_info, read_sectors, write_sectors, \
         capacity_info, find_im_ldr_usb
 
 
-def check_magic_str(eps, cmd_sector_base):
+def check_magic_str(usbdldev, cmd_sector_base):
     #read magic hex, should be 0xdeadbeef
-    magic_block = read_sectors(eps, \
+    magic_block = read_sectors(usbdldev, \
             cmd_sector_base + USB_PROGRAMMER_VERIFY_BL_VALIDITY_OFFSET, 1)
     if not magic_block:
         return False
@@ -29,7 +29,7 @@ def check_magic_str(eps, cmd_sector_base):
         return False
     return True
 
-def change_to_dl_mode(eps):
+def change_to_dl_mode(usbdldev):
     to_two_byte_char = lambda x: chr(x / 10) + chr(x % 10)
     fill_sector = NULL_CHAR * 9
     fill_sector += to_two_byte_char(configs.usb_img_dl_major_version)
@@ -38,12 +38,12 @@ def change_to_dl_mode(eps):
     fill_sector += NULL_CHAR
     fill_sector += to_two_byte_char(configs.usb_img_dl_small_version)
     fill_sector += NULL_CHAR * (512 - len(fill_sector))
-    ret = write_sectors(eps, fill_sector, \
+    ret = write_sectors(usbdldev, fill_sector, \
             USB_PROGRAMMER_DOWNLOAD_WRITE_LOADER_EXISTENCE, 1 )
     return ret
 
-def check_ram_loader_version(eps, cmd_sector_base):
-    version_sector = read_sectors( eps, \
+def check_ram_loader_version(usbdldev, cmd_sector_base):
+    version_sector = read_sectors( usbdldev, \
             cmd_sector_base + USB_PROGRAMMER_GET_BL_SW_VERSION_OFFSET, 1)
     # configs.blOneStageReady = False
     ret = "ldr-ok"
@@ -77,8 +77,8 @@ def check_ram_loader_version(eps, cmd_sector_base):
     return ret
 
 
-def get_flash_type(eps, cmd_sector_base):
-    dev_type_sector = read_sectors(eps, \
+def get_flash_type(usbdldev, cmd_sector_base):
+    dev_type_sector = read_sectors(usbdldev, \
             cmd_sector_base + USB_PROGRAMMER_GET_DEV_TYPE_OFFSET, 1)
     if dev_type_sector[8] == FLASH_DEV_TYPE_IS_NAND:
         ucDevType = FLASH_DEV_TYPE_IS_NAND
@@ -92,12 +92,12 @@ def get_flash_type(eps, cmd_sector_base):
     return ucDevType
 
 
-def verify_im_ldr_usb(eps):
-    dbg("\nChecking: ", eps)
+def verify_im_ldr_usb(usbdldev):
+    dbg("\nChecking: ", usbdldev)
 
     ( periheral_qualifer, periheral_dev_type, 
             t10_vendor_ident, product_ident ) = \
-                    inquiry_info(eps)
+                    inquiry_info(usbdldev)
     if periheral_qualifer != 0x00 or \
             periheral_dev_type != 0x00 or \
             not t10_vendor_ident.startswith('Infomax') or \
@@ -107,34 +107,34 @@ def verify_im_ldr_usb(eps):
     print()
     info("Sg dev info match")
 
-    numofblock, block_size = capacity_info(eps)
+    numofblock, block_size = capacity_info(usbdldev)
     if block_size and block_size != SECTOR_SIZE:
         warn("Unable to handle block_size=%d, must be %d" \
                 % (block_size, SECTOR_SIZE))
         return False
     if not numofblock:
-        warn("fail to read numofblock of ", eps)
+        warn("fail to read numofblock of ", usbdldev)
         return False
 
     cmd_sector_base = numofblock - COMMAND_AREA_SIZE
-    ret = check_magic_str(eps, cmd_sector_base)
+    ret = check_magic_str(usbdldev, cmd_sector_base)
     if ret: 
         info("Magic string match")
     else:
         warn("Magic string not match, this is ok to ignore")
         return False
 
-    ret = check_ram_loader_version(eps, cmd_sector_base)
+    ret = check_ram_loader_version(usbdldev, cmd_sector_base)
     if ret != "ldr-ok":
         return ret
 
-    ret = change_to_dl_mode(eps)
+    ret = change_to_dl_mode(usbdldev)
     if ret:
         info("Change device to download mode succeed")
     else:
         wtf("Change device to download mode failed")
 
-    ret = get_flash_type(eps, cmd_sector_base)
+    ret = get_flash_type(usbdldev, cmd_sector_base)
     if ret:
         info("Get flash type succeed")
     else:
@@ -147,5 +147,5 @@ def verify_im_ldr_usb(eps):
 
 if __name__ == "__main__":
     configs.debug = True
-    eps = find_im_ldr_usb()
-    verify_im_ldr_usb(eps)
+    usbdldev = find_im_ldr_usb()
+    verify_im_ldr_usb(usbdldev)
