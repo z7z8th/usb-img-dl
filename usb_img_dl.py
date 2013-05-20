@@ -18,7 +18,7 @@ from const_vars import *
 from debug_utils import *
 import mtd_part_alloc
 from bsp_pkg_check import bsp_pkg_check
-from usb_generic import get_usb_dev_eps, get_port_path
+from usb_generic import get_usb_dev_eps, get_port_path, usb_clear_halt
 from usb_probe import verify_im_ldr_usb
 from usb_misc import *
 from usb_burn import *
@@ -236,6 +236,7 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
         traceback.print_exc()
         # raise e
     finally:
+        usb_clear_halt(dev, 0x86)
         if do_profile:
             pr.disable()
             pr.print_stats()

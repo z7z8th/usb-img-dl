@@ -404,6 +404,11 @@ def _setup_prototypes(lib):
             c_void_p,
             c_uint8]
 
+    # int libusb_clear_halt (libusb_device_handle *dev, unsigned char endpoint)
+    lib.libusb_clear_halt.argtypes = [
+            _libusb_device_handle,
+            c_uint8]
+
 
 
 # check a libusb function call
@@ -546,6 +551,10 @@ class _LibUSB(usb.backend.IBackend):
     @methodtrace(_logger)
     def set_debug(self, level):
         _check(_lib.libusb_set_debug(None, level))
+
+    @methodtrace(_logger)
+    def clear_halt(self, dev_handle, ep_num):
+        return _check(_lib.libusb_clear_halt(dev_handle, ep_num)).value
 
     @methodtrace(_logger)
     def claim_interface(self, dev_handle, intf):
