@@ -39,15 +39,37 @@ def get_port_path(dev):
 def usb_set_debug(level):
     return libusbx1.get_backend().set_debug(level)
 
-def usb_clear_ep_stall(dev, ep_num = 0x86):
+def usb_clear_ep_stall(dev, ep_num):
     #return
     dbg("----->> clear ep stall")
     dev.ctrl_transfer(0x02, 0x01, 0, ep_num, '', DEFAULT_TIMEOUT)
     dbg("-----<< clear ep stall done: 0x%x" % ep_num)
 
 def usb_clear_halt(dev, ep_num):
-    dbg("----->> clear halt: 0x%x" % ep_num)
-    return dev._ctx.backend.clear_halt(dev._ctx.handle, ep_num)
+    ri = 0
+    while ri < RETRY_MAX:
+        ret = None
+        try:
+            dbg("----->> clear halt: 0x%x" % ep_num)
+            ret = dev._ctx.backend.clear_halt(dev._ctx.handle, ep_num)
+            assert(ret == 0)
+            return ret
+        except Exception as e:
+            traceback.print_exc()
+            ri += 1
+            warn("*** clear halt fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            time.sleep(2)
+            continue
+        
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+
+
+def usb_clear_dev_halt(usbdldev):
+    # print "ep_out addr: 0x%x" % usbdldev.ep_out.bEndpointAddress
+    # print "ep_in addr: 0x%x" % usbdldev.ep_in.bEndpointAddress
+    usb_clear_halt(usbdldev.dev, usbdldev.ep_out.bEndpointAddress)
+    usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
+
 
 def usb_test_clear_halt(dev, ep_num):
     for i in range(10):
@@ -126,8 +148,7 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("inquiry_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_halt(usbdldev.dev, 0x05)
-            usb_clear_halt(usbdldev.dev, 0x86)
+            usb_clear_dev_halt(usbdldev)
             time.sleep(2)
             continue
         return ret_buf
@@ -167,8 +188,7 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("capacity_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_halt(usbdldev.dev, 0x05)
-            usb_clear_halt(usbdldev.dev, 0x86)
+            usb_clear_dev_halt(usbdldev)
             time.sleep(2)
             continue
         return lastblock, blocksize
@@ -227,8 +247,7 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("read_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_halt(usbdldev.dev, 0x05)
-            usb_clear_halt(usbdldev.dev, 0x86)
+            usb_clear_dev_halt(usbdldev)
             time.sleep(2)
             continue
         return sector_data
@@ -283,8 +302,7 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
             ri += 1
             warn("write_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
             # usb_clear_ep_stall(usbdldev.dev)
-            usb_clear_halt(usbdldev.dev, 0x05)
-            usb_clear_halt(usbdldev.dev, 0x86)
+            usb_clear_dev_halt(usbdldev)
             continue
         return ret
 
@@ -388,6 +406,7 @@ def find_im_ldr_usb():
         print "###### test clear halt ######"
         #usb_test_clear_halt(usbdldev.dev, 0x86)
         #usb_test_clear_halt(usbdldev.dev, 0x05)
+        usb_clear_dev_halt(usbdldev)
 
         return usbdldev
 
