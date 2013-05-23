@@ -236,18 +236,22 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
         traceback.print_exc()
         # raise e
     finally:
-        usb_clear_halt(dev, 0x86)
+        try:
+            usb_clear_halt(dev, 0x86)
+        except:
+            pass
         if do_profile:
             pr.disable()
             pr.print_stats()
 
         time_used = time.time() - start_time
-        with dl_thread_result_list_lock:
-            dl_thread_result_list.append((port_id_str, is_failed, time_used))
         warn("\nport_id: %10s %12s. Time used: %3.2d seconds" % \
                 ( port_id_str, 
                     "***Failed" if is_failed else "Success",
                     time_used))
+        with dl_thread_result_list_lock:
+            dl_thread_result_list.append((port_id_str, is_failed, time_used))
+
 
 
 def usb_img_dl_main():

@@ -20,9 +20,10 @@ class UsbDlDev:
         self.dev = dev
 
 
-DEFAULT_TIMEOUT = 8*1000
-MAX_TIMEOUT     = 20*1000
+DEFAULT_TIMEOUT = 4*1000
+MAX_TIMEOUT     = 10*1000
 RETRY_MAX = 30
+RETRY_MAX_CLEAR_HALT = 4
 
 test_stall_done = 0
 
@@ -47,7 +48,7 @@ def usb_clear_ep_stall(dev, ep_num):
 
 def usb_clear_halt(dev, ep_num):
     ri = 0
-    while ri < RETRY_MAX:
+    while ri < RETRY_MAX_CLEAR_HALT:
         ret = None
         try:
             dbg("----->> clear halt: 0x%x" % ep_num)
@@ -57,18 +58,31 @@ def usb_clear_halt(dev, ep_num):
         except Exception as e:
             traceback.print_exc()
             ri += 1
-            warn("*** clear halt fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            time.sleep(2)
+            warn("*** clear halt fail; will retry: %d/%d. " % (ri, RETRY_MAX_CLEAR_HALT), e)
+            time.sleep(1)
+            #ret = dev._ctx.backend.clear_halt(dev._ctx.handle, 0)
+            #warn("*** cleared ep0 halt")
+            assert(ret == 0)
+            time.sleep(1)
             continue
         
-    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX_CLEAR_HALT)
 
 
 def usb_clear_dev_halt(usbdldev):
     # print "ep_out addr: 0x%x" % usbdldev.ep_out.bEndpointAddress
     # print "ep_in addr: 0x%x" % usbdldev.ep_in.bEndpointAddress
-    usb_clear_halt(usbdldev.dev, usbdldev.ep_out.bEndpointAddress)
-    usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
+    try:
+        # FIXME: need to clear ep0 halt?
+        #usb_clear_halt(usbdldev.dev, 0)
+        usb_clear_halt(usbdldev.dev, usbdldev.ep_out.bEndpointAddress)
+        usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
+        return usbdldev
+    except:
+        warn("clear dev halt fail, reset device")
+        # FIXME: reset works fine?
+        usbdldev.dev.reset()
+        return get_usb_dev_eps(usbdldev.dev)
 
 
 def usb_test_clear_halt(dev, ep_num):
@@ -127,16 +141,22 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
+            if ri > 0:
+                dbg("*** sleep before cbw")
+                time.sleep(1)
             ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, INQUIRY_DATA_LEN, cdb, timeout)
             dbg("CBW written!")
 
+            if ri > 0:
+                dbg("*** sleep before data")
+                time.sleep(2)
             inquiry_buf = usbdldev.ep_in.read(INQUIRY_DATA_LEN, timeout)
             dbg("inquiry_buf=", inquiry_buf)
             dbg("inquiry info read!")
             ret_buf = print_inquiry_data(inquiry_buf)
 
             if ri > 0:
-                dbg("*** sleep while retry")
+                dbg("*** sleep before csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
             dbg("CSW read:", csw_data)
@@ -148,8 +168,8 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("inquiry_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_dev_halt(usbdldev)
-            time.sleep(2)
+            time.sleep(1)
+            usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return ret_buf
 
@@ -165,8 +185,14 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
+            if ri > 0:
+                dbg("*** sleep before cbw")
+                time.sleep(1)
             ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, 8, cdb, timeout)
 
+            if ri > 0:
+                dbg("*** sleep before data")
+                time.sleep(2)
             read_buf = usbdldev.ep_in.read(8, timeout)
             dbg("block info: ", read_buf)
             lastblock = str_be_to_int32_le(read_buf[:4].tostring())
@@ -177,7 +203,7 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             dbg("capacity=%ul, %f GB" % (disk_cap, disk_cap/1024.0/1024.0/1024.0))
 
             if ri > 0:
-                dbg("*** sleep while retry")
+                dbg("*** sleep before csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
             dbg("csw: ", csw_data)
@@ -188,8 +214,8 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("capacity_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_dev_halt(usbdldev)
-            time.sleep(2)
+            time.sleep(1)
+            usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return lastblock, blocksize
 
@@ -226,6 +252,9 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     while ri < RETRY_MAX:
         ret = None
         try:
+            if ri > 0:
+                dbg("*** sleep before cbw")
+                time.sleep(1)
             ret = write_cbw(usbdldev.ep_out, CBW_FLAG_IN, 
                         rd_size, cdb, timeout)
             if ri > 0:
@@ -247,8 +276,8 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
             traceback.print_exc()
             ri += 1
             warn("read_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
-            usb_clear_dev_halt(usbdldev)
-            time.sleep(2)
+            time.sleep(1)
+            usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return sector_data
 
@@ -277,6 +306,7 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
                 time.sleep(1)
             ret = write_cbw(usbdldev.ep_out, CBW_FLAG_OUT, 
                     wr_size, cdb, timeout)
+            
             if ri > 0:
                 dbg("*** sleep before data")
                 time.sleep(1)
@@ -302,7 +332,8 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
             ri += 1
             warn("write_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
             # usb_clear_ep_stall(usbdldev.dev)
-            usb_clear_dev_halt(usbdldev)
+            time.sleep(1)
+            usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return ret
 
