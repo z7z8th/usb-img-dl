@@ -374,37 +374,41 @@ def usb_img_dl_main():
     LDR_ROM_idProduct = 0x0fff
 
     dl_thread_list = []
+    device_found = False
 
+    while not device_found:
+        with get_usb_dev_eps_lock:
+            dev_list = usb.core.find(find_all = True, 
+                            backend = libusbx1.get_backend(),
+                            idVendor = LDR_ROM_idVendor,
+                            idProduct = LDR_ROM_idProduct)
+            if len(dev_list) == 0:
+                err("No Device Found!")
+            for dev in dev_list:
+                # FIXME: host may have more than 16 buses
+                port_id = chr(dev.bus) + get_port_path(dev)
+                with ldr_processing_set_lock:
+                    if port_id in ldr_processing_set:
+                        dbg("*** already in ldr_processing_set")
+                        continue
 
-    with get_usb_dev_eps_lock:
-        dev_list = usb.core.find(find_all = True, 
-                        backend = libusbx1.get_backend(),
-                        idVendor = LDR_ROM_idVendor,
-                        idProduct = LDR_ROM_idProduct)
-        if len(dev_list) == 0:
-            err("No Device Found!")
-        for dev in dev_list:
-            # FIXME: host may have more than 16 buses
-            port_id = chr(dev.bus) + get_port_path(dev)
-            with ldr_processing_set_lock:
-                if port_id in ldr_processing_set:
-                    dbg("*** already in ldr_processing_set")
-                    continue
+                dbg("~*" * 20)
+                info(dev.__dict__)
+                with ldr_processing_set_lock:
+                    ldr_processing_set.add(port_id)
+                    info("ldr_processing_set after added: ", ldr_processing_set)
 
-            dbg("~*" * 20)
-            info(dev.__dict__)
-            with ldr_processing_set_lock:
-                ldr_processing_set.add(port_id)
-                info("ldr_processing_set after added: ", ldr_processing_set)
-
-            dl_thread = threading.Thread(target = usb_dl_thread_func_wrapper, 
-                                    name = port_id,
-                                    args = (dev, port_id, options, img_buf_dict))
-            dl_thread_list.append(dl_thread)
-            dl_thread.start()
-        else:
-            #warn("No bootloader device found!")
-            pass
+                dl_thread = threading.Thread(target = usb_dl_thread_func_wrapper, 
+                                        name = port_id,
+                                        args = (dev, port_id, options, img_buf_dict))
+                dl_thread_list.append(dl_thread)
+                dl_thread.start()
+                device_found = True
+                break
+            else:
+                #warn("No bootloader device found!")
+                time.sleep(1)
+                pass
 
     '''
     sprogress = Spinner()
