@@ -13,7 +13,7 @@ def dbg(*msg):
 
 
 def info(*msg):
-    if(configs.debug):
+#    if(configs.debug):
         colored_print('blue', None, None, *msg)
 
 def pinfo(*msg):

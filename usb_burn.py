@@ -9,6 +9,7 @@ import mmap
 import copy
 import subprocess
 from usb.core import USBError
+from progress.bar import IncrementalBar
 
 from const_vars import *
 from debug_utils import *
@@ -17,7 +18,6 @@ import mtd_part_alloc
 from usb_misc import set_dl_img_type
 from usb_generic import read_sectors, write_sectors, write_large_buf, capacity_info
 from usb_erase import *
-
 
 
 def usb_burn_ram_loader(usbdldev, img_buf):
@@ -125,6 +125,10 @@ def usb_burn_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     size_per_nand_block = size_page_per_nand_block + size_spare_per_nand_block
     assert(isinstance(size_per_nand_block, int))
 
+    progressBar = IncrementalBar('Burning', 
+            max = max(1, img_total_size/size_per_nand_block),
+            suffix='%(percent)d%%')
+
     page_buf = array.array('c', NULL_CHAR * size_page_per_nand_block)
     spare_buf = array.array('c', NULL_CHAR * size_spare_per_nand_block)
     while size_written < img_total_size:
@@ -177,6 +181,10 @@ def usb_burn_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
 
+        if not configs.debug:
+            progressBar.next()
+
+    progressBar.finish()
     dbg("Write yaffs2 to nand finished")
     buf = chr(0x00)
     buf += NULL_CHAR * (SECTOR_SIZE - 1)

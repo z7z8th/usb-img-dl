@@ -12,6 +12,7 @@ import libusbx1
 import time
 import traceback
 from progress.spinner import Spinner
+from progress.bar import IncrementalBar
 
 import configs
 from const_vars import *
@@ -186,6 +187,7 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
             # set_dl_img_type(usbdldev, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
+            info("\nBuring: ", type_call_dict[b]['std_name'])
             time.sleep(0.5)
 
             burn_desc = type_call_dict[b]['std_name']
@@ -204,7 +206,7 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
             else:
                 wtf("Unknown img type")
 
-            info("\n;-) Burn %s succeed!\n" % burn_desc)
+            info(";-) Burn %s succeed!\n" % burn_desc)
 
     # usb2_end(usbdldev)
     
@@ -404,6 +406,7 @@ def usb_img_dl_main():
             #warn("No bootloader device found!")
             pass
 
+    '''
     sprogress = Spinner()
     while True:
         with dl_thread_result_list_lock:
@@ -413,7 +416,7 @@ def usb_img_dl_main():
                 break
         time.sleep(1)
     sprogress.finish()
-
+    '''
     for t in dl_thread_list:
         t.join()
 

@@ -7,6 +7,7 @@ import configs
 from const_vars import *
 from debug_utils import *
 from utils import *
+from progress.bar import IncrementalBar
 
 import libusbx1
 import usb.core
@@ -236,7 +237,6 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
 
 READ_10 = 0x28
 def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
-    traceback.print_exc()
     timeout = min(MAX_TIMEOUT, timeout * sector_num)
     rd_size = sector_num * SECTOR_SIZE
     cdb = chr(READ_10) + NULL_CHAR
@@ -342,6 +342,11 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
 
 def write_large_buf(usbdldev, large_buf, sector_offset,
         size_per_write = SIZE_PER_WRITE):
+    progressBar = IncrementalBar('Burning',
+                max = max(1, len(large_buf)/size_per_write),
+                suffix='%(percent)d%%')
+
+
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
     dbg(get_cur_func_name(), "(): total sector num=",
@@ -358,6 +363,10 @@ def write_large_buf(usbdldev, large_buf, sector_offset,
         write_sectors(usbdldev, buf, sector_offset, sector_num_write)
         size_written += size_per_write
         sector_offset += sector_num_write
+        if not configs.debug:
+            progressBar.next()
+
+    progressBar.finish()
     dbg("End of " + get_cur_func_name())
 
 
