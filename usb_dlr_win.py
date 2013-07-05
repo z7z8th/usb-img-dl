@@ -10,6 +10,7 @@ import gobject
 
 import configs
 from debug_utils import *
+import mtd_part_alloc
 
 class usb_dlr_win(gtk.Window):
     __gtype_name__  = 'usb_dlr_win'
@@ -32,7 +33,7 @@ class usb_dlr_win(gtk.Window):
         self.menu_bar.add(self.create_menu())
         self.about_menu_item = gtk.MenuItem("_About")
         self.about_menu_item.connect("activate", self.on_active_about_menu)
-        self.menu_bar.add(gtk.Button("About Btn"))
+        self.menu_bar.add(self.about_menu_item)
 
         # choose pkg path
         hbox = gtk.HBox(spacing=4)
@@ -81,6 +82,14 @@ class usb_dlr_win(gtk.Window):
     def on_active_reserve_mdata(self, widget):
         self.options.reserve_mdata = widget.get_active()
         info(self.options.__dict__)
+
+    def on_bsp_alloc_changed(self, widget):
+        info("BSP Alloc changed")
+        for (w, f) in self.options.bsp_alloc_item_list:
+            if w.get_active():
+                info(w.get_label(), "is selected")
+                f()
+                break
             
     def create_menu(self):
         gen_item = gtk.MenuItem("_Options")
@@ -96,6 +105,25 @@ class usb_dlr_win(gtk.Window):
         erase_op_menu.append(erase_op_all_item)
         gen_menu.append(erase_op_item)
 
+        bsp_alloc_item = gtk.MenuItem("_BSP Allocation")
+        bsp_alloc_menu = gtk.Menu()
+        bsp_alloc_item.set_submenu(bsp_alloc_menu)
+        group = None
+        bsp_alloc_item_list = []
+        bsp_alloc_bsp12_item = gtk.RadioMenuItem(group, "BSP1_2")
+        group = bsp_alloc_bsp12_item
+        bsp_alloc_bsp13_item = gtk.RadioMenuItem(group, "BSP1_3")
+        bsp_alloc_bsp12_item.set_active(True)
+        bsp_alloc_bsp12_item.connect("activate", self.on_bsp_alloc_changed)
+        bsp_alloc_item_list.append((bsp_alloc_bsp12_item,
+                                    mtd_part_alloc.use_bsp12_allocation))
+        bsp_alloc_item_list.append((bsp_alloc_bsp13_item,
+                                    mtd_part_alloc.use_bsp13_allocation))
+        self.options.bsp_alloc_item_list = bsp_alloc_item_list
+        bsp_alloc_menu.add(bsp_alloc_bsp12_item)
+        bsp_alloc_menu.add(bsp_alloc_bsp13_item)
+        gen_menu.append(bsp_alloc_item)
+        
         reset_port_map_item = gtk.MenuItem("_Reset Port Map")
         reset_port_map_item.connect("activate", self.on_active_reset_port_map)
         gen_menu.append(reset_port_map_item)
@@ -131,6 +159,31 @@ class usb_dlr_win(gtk.Window):
             self.pkg_path_entry.set_text('')
             
         dialog.destroy()
+
+
+    def mmap_pkg(self):
+        pkg_path = self.options.pkg_path
+        if not os.path.exists(pkg_path):
+            wtf("Package not found in: ", pkg_path)
+        chk_rslt, pkg_img_pos_dict = bsp_pkg_check(pkg_path)
+        if not chk_rslt:
+            wtf("Failed to verify bsp package: ", pkg_path)
+        info(pkg_img_pos_dict)
+        # open pkg buffer
+        pkg_fd = open(pkg_path, 'rb')
+        pkg_buf = mmap.mmap(pkg_fd.fileno(), 0, access = mmap.ACCESS_READ)
+        # gen burn list
+        self.options.burn_list = ''
+        self.options.pkg_img_pos_list = []
+        for i, pkg_img_pos in pkg_img_pos_dict.items():
+            self.options.burn_list += img_type_dict[i][1]
+            self.options.pkg_img_pos_list.append(pkg_img_pos)
+
+        
+        info("BSP PKG INFO: ", self.options.burn_list, self.options.pkg_img_pos_list)
+
+        
+
 
         
 if __name__ == '__main__':
