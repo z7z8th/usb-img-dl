@@ -21,7 +21,7 @@ from bsp_pkg_check import bsp_pkg_check
 from usb_generic import get_usb_dev_eps, get_port_path, usb_clear_halt
 from usb_probe import verify_im_ldr_usb
 from usb_misc import *
-from usb_burn import *
+from usb_dl import *
 
 
 ########## Gloable Vars ##########
@@ -191,15 +191,15 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
             burn_desc = type_call_dict[b]['std_name']
             burn_type = type_call_dict[b]['img_type']
             if burn_type == 'dyn_id':
-                usb_burn_dyn_id(usbdldev, img_buf_dict[burn_desc], 
+                usb_dl_dyn_id(usbdldev, img_buf_dict[burn_desc], 
                         type_call_dict[b]['func_params'])
             elif burn_type == 'raw':
                 burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                usb_burn_raw(usbdldev, img_buf_dict[burn_desc], 
+                usb_dl_raw(usbdldev, img_buf_dict[burn_desc], 
                         burn_offset, burn_lenght)
             elif burn_type == 'yaffs2':
                 burn_offset, burn_lenght = type_call_dict[b]['func_params']
-                usb_burn_yaffs2(usbdldev, img_buf_dict[burn_desc], 
+                usb_dl_yaffs2(usbdldev, img_buf_dict[burn_desc], 
                         burn_offset, burn_lenght)
             else:
                 wtf("Unknown img type")

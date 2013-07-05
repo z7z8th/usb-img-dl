@@ -20,7 +20,7 @@ from usb_erase import *
 
 
 
-def usb_burn_ram_loader(usbdldev, img_buf):
+def usb_dl_ram_loader(usbdldev, img_buf):
     dbg("enter: ", get_cur_func_name())
     sys.stdout.flush()
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
@@ -34,18 +34,18 @@ def usb_burn_ram_loader(usbdldev, img_buf):
     info("Waiting for new ram_loader to take affect")
 
 
-def usb_burn_ram_loader_file_to_ram(usbdldev, loader_path):
+def usb_dl_ram_loader_file_to_ram(usbdldev, loader_path):
     dbg("enter: ", get_cur_func_name())
     if not os.path.exists(loader_path):
         wtf("No such file: ", loader_path)
     set_dl_img_type(usbdldev, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
     with open(loader_path, 'rb') as img_fd:
         img_buf = mmap.mmap(img_fd.fileno(), 0, mmap.MAP_PRIVATE, mmap.PROT_READ)
-        usb_burn_ram_loader(usbdldev, img_buf)
+        usb_dl_ram_loader(usbdldev, img_buf)
         img_buf.close()
 
 
-def usb_burn_dyn_id(usbdldev, img_buf, dyn_id):
+def usb_dl_dyn_id(usbdldev, img_buf, dyn_id):
     # erase and set nand partition info
     usb_erase_dyn_id(usbdldev, dyn_id)
     sector_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET / SECTOR_SIZE
@@ -53,7 +53,7 @@ def usb_burn_dyn_id(usbdldev, img_buf, dyn_id):
     write_large_buf(usbdldev, img_buf, sector_offset)
 
 
-def usb_burn_raw(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
+def usb_dl_raw(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     sector_offset = mtd_part_start_addr / SECTOR_SIZE
     # erase first
     usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, False)
@@ -94,7 +94,7 @@ def parse_yaffs2_header(header_buf):
     return (header_size, size_nand_page, size_nand_spare)
 
 
-def usb_burn_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
+def usb_dl_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     # assert(isinstance(usbdldev, int))
     assert(isinstance(mtd_part_start_addr, int))
     assert(isinstance(mtd_part_size, int))
