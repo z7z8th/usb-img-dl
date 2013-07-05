@@ -147,7 +147,7 @@ IMG_IMEI           = 0x9
 IMG_BAREBOX_ENV    = 0xA
 IMG_ICON           = 0xB
 IMG_MAX            = 0xC
-
+IMG_CACHE          = 0xD   # not used
 PROG_M_NUM = (IMG_MAX-1)
 
 img_type_dict = {

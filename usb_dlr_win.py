@@ -11,6 +11,7 @@ import gobject
 import configs
 from debug_utils import *
 import mtd_part_alloc
+import type_call_dict
 
 class usb_dlr_win(gtk.Window):
     __gtype_name__  = 'usb_dlr_win'
@@ -60,6 +61,9 @@ class usb_dlr_win(gtk.Window):
             label = gtk.Label("Device %d" % i)
             self.dev_table.attach(label, col, col+1, row, row+1)
 
+#        self.status_bar = gtk.Statusbar()
+#        self.vbox.pack_start(self.status_bar, False, False)
+
 
     def init_usb_dlr_options(self):
         class usb_dlr_options(object):
@@ -90,6 +94,7 @@ class usb_dlr_win(gtk.Window):
                 info(w.get_label(), "is selected")
                 f()
                 break
+        type_call_dict.update_type_call_dict()
             
     def create_menu(self):
         gen_item = gtk.MenuItem("_Options")
@@ -161,7 +166,7 @@ class usb_dlr_win(gtk.Window):
         dialog.destroy()
 
 
-    def mmap_pkg(self):
+    def map_img_buf(self):
         pkg_path = self.options.pkg_path
         if not os.path.exists(pkg_path):
             wtf("Package not found in: ", pkg_path)
@@ -174,13 +179,13 @@ class usb_dlr_win(gtk.Window):
         pkg_buf = mmap.mmap(pkg_fd.fileno(), 0, access = mmap.ACCESS_READ)
         # gen burn list
         self.options.burn_list = ''
-        self.options.pkg_img_pos_list = []
+        self.options.img_buf_dict = dict()
         for i, pkg_img_pos in pkg_img_pos_dict.items():
-            self.options.burn_list += img_type_dict[i][1]
-            self.options.pkg_img_pos_list.append(pkg_img_pos)
+            img_start, img_size = pkg_img_pos
+            img_buf = pkg_buf[img_start, img_start + img_size]
+            self.options.img_buf_dict[i] = img_buf
 
         
-        info("BSP PKG INFO: ", self.options.burn_list, self.options.pkg_img_pos_list)
 
         
 
