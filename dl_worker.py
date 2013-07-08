@@ -24,7 +24,9 @@ class dl_worker(object):
         ret = verify_im_ldr_usb(usbdldev)
         if not ret:
             wtf("Unable to verify bootloader.")
-        if ret == "ldr-update":
+        elif ret == "ldr-update":
             info("Updating Ram Loader...")
             self.dev_opts = self.ldr_update_worker.work()
+        else:
+            self.dev_opts.__dict__.update(dict(usbdldev))
             

@@ -49,7 +49,7 @@ class ldr_update_worker(object):
             ret = verify_im_ldr_usb(usbdldev)
             if not ret or ret == "ldr-update":
                 raise Exception("Update Ramloader failed!")
-            self.dev_opts.usbdldev = usbdldev
+            self.dev_opts.__dict__.update(dict(usbdldev))
             return self.dev_opts
         
         

@@ -8,6 +8,8 @@ pygtk.require('2.0')
 import gtk
 import gobject
 
+from dev_info_bar import dev_info_bar
+
 import configs
 from debug_utils import *
 import mtd_part_alloc
@@ -18,7 +20,7 @@ class usb_dlr_win(gtk.Window):
     
     def __init__(self):
         gtk.Window.__init__(self)
-        self.set_default_size(800, 600)
+        self.set_default_size(800, 500)
         self.set_border_width(4)
         self.connect('delete-event', self.on_delete_event)
         self.downloading = False
@@ -52,17 +54,26 @@ class usb_dlr_win(gtk.Window):
         self.vbox.pack_start(dev_frame, True, True)
 
         self.dev_table = gtk.Table(8, 2)
+        self.dev_table.set_homogeneous(True)
         dev_frame.add(self.dev_table)
 #        self.vbox.pack_start(self.dev_table, True, True)
 
         for i in range(16):
             col = i / 8;
             row = i % 8;
-            label = gtk.Label("Device %d" % i)
-            self.dev_table.attach(label, col, col+1, row, row+1)
+            label = "Device %2d" % (i+1)
+            dev_info = dev_info_bar()
+            dev_info.set_label(label)
+            dev_info.set_info("Disconnected")
+            self.dev_table.attach(dev_info,
+                                  col, col+1, row, row+1,
+                                  xpadding=6, ypadding=6)
 
-#        self.status_bar = gtk.Statusbar()
-#        self.vbox.pack_start(self.status_bar, False, False)
+        # self.status_bar = gtk.Statusbar()
+        # self.status_bar_ctx_id = self.status_bar.get_context_id("default")
+        # self.vbox.pack_start(self.status_bar, False, False)
+        # self.status_bar.push(self.status_bar_ctx_id, "Ready")
+        # self.status_bar.push(self.status_bar_ctx_id, "Hello")
 
 
     def init_usb_dlr_options(self):
@@ -186,10 +197,6 @@ class usb_dlr_win(gtk.Window):
             self.options.img_buf_dict[i] = img_buf
 
         
-
-        
-
-
         
 if __name__ == '__main__':
     configs.debug = True
