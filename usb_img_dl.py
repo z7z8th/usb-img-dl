@@ -248,7 +248,8 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
             pass
         if do_profile:
             pr.disable()
-            pr_result = os.path.join("profile", "profile-"+port_id_str+time.strftime("-%Y_%m%d_%H%M%S"))
+            pr_result = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                     "profile", "profile-"+port_id_str+time.strftime("-%Y_%m%d_%H%M%S"))
             #pr.print_stats()
             #pr.dump_stats(pr_result)
             s = io.FileIO(pr_result, 'w')
