@@ -135,7 +135,9 @@ def parse_options():
 
 def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
     global get_usb_dev_eps_lock
-    info("\n>>>>>>>>>>>>>>> new dl thread\n")
+    port_id_str = "".join("%X." % ord(i) for i in port_id)
+    
+    pinfo("\n>>> New Thread", port_id_str, ", ", time.ctime())
     ################ get ep out/in of usb device ################
     usbdldev = None
     time.sleep(0.5)
@@ -146,6 +148,8 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
         ret = verify_im_ldr_usb(usbdldev)
         if not ret:
             wtf("Unable to verify bootloader.")
+
+    pinfo(">>> Get Dev eps", port_id_str, time.ctime())
 
     # usb2_start(usbdldev)
 
@@ -181,7 +185,7 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
             else:
                 wtf("Unknown img type")
             info("\n;-) Erase %s succeed!" % erase_desc)
-
+    pinfo(">>> All Erased", port_id_str, time.ctime())
     ################ burn ################
     if options.burn_list:
         for i,b in enumerate(options.burn_list):
@@ -205,6 +209,7 @@ def usb_dl_thread_func(dev, port_id, options, img_buf_dict):
                 wtf("Unknown img type")
 
             info("\n;-) Burn %s succeed!\n" % burn_desc)
+    pinfo(">>> All Burned", port_id_str, time.ctime())
 
     # usb2_end(usbdldev)
     
@@ -218,9 +223,10 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
     is_failed = False
     start_time = time.time()
     do_profile = options.do_profile
+    pr = None
     port_id_str = "".join("%X." % ord(i) for i in port_id)
 
-    pinfo("New Thread: ", port_id_str)
+    pinfo(">>> New Thread Wrap: ", port_id_str, ", ", time.ctime())
     if do_profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
@@ -229,8 +235,8 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
     try:
         if do_profile:
             pr.runcall(usb_dl_thread_func, dev, port_id, options, img_buf_dict)
-
-        usb_dl_thread_func(dev, port_id, options, img_buf_dict)
+        else:
+            usb_dl_thread_func(dev, port_id, options, img_buf_dict)
     except Exception as e:
         is_failed = True
         traceback.print_exc()
@@ -242,7 +248,12 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
             pass
         if do_profile:
             pr.disable()
-            pr.print_stats()
+            pr_result = os.path.join("profile", "profile-"+port_id_str+time.strftime("-%Y_%m%d_%H%M%S"))
+            #pr.print_stats()
+            #pr.dump_stats(pr_result)
+            s = io.FileIO(pr_result, 'w')
+            ps = pstats.Stats(pr, stream=s)
+            ps.print_stats()
 
         time_used = time.time() - start_time
         warn("\nport_id: %10s %12s. Time used: %3.2d seconds" % \
@@ -261,6 +272,8 @@ def usb_img_dl_main():
     img_paths = args
     dbg("Options: ", options)
     dbg("Args: ", args)
+
+    pinfo(">>> Main", time.ctime())
 
     configs.debug = True if options.verbose else False
 
@@ -411,7 +424,7 @@ def usb_img_dl_main():
                 sprogress.next()
             else:
                 break
-        time.sleep(1)
+        time.sleep(4)
     sprogress.finish()
 
     for t in dl_thread_list:

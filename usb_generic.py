@@ -236,7 +236,6 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
 
 READ_10 = 0x28
 def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
-    traceback.print_exc()
     timeout = min(MAX_TIMEOUT, timeout * sector_num)
     rd_size = sector_num * SECTOR_SIZE
     cdb = chr(READ_10) + NULL_CHAR
