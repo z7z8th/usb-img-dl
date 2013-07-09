@@ -15,17 +15,47 @@ from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from usb_misc import set_dl_img_type
-from usb_generic import read_sectors, write_sectors, write_large_buf, capacity_info
+from usb_generic import read_sectors, write_sectors, capacity_info
 from usb_erase import *
 
+
+def write_large_buf(usbdldev, large_buf, sector_offset,
+        size_per_write = SIZE_PER_WRITE):
+    img_total_size = len(large_buf)
+    dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
+    dbg(get_cur_func_name(), "(): total sector num=",
+            (float(img_total_size)/SECTOR_SIZE))
+    usbdldev.dev_info.set_fraction(0)
+    size_written = 0
+    while size_written < img_total_size:
+        buf_end_offset = min(img_total_size, size_written + size_per_write)
+        sector_num_write = (buf_end_offset - size_written + \
+                SECTOR_SIZE - 1)/SECTOR_SIZE
+        buf = large_buf[size_written : buf_end_offset]
+        buf_len = buf_end_offset - size_written
+        if buf_len < size_per_write:
+            buf += NULL_CHAR * (sector_num_write*SECTOR_SIZE - buf_len)
+        write_sectors(usbdldev, buf, sector_offset, sector_num_write)
+        size_written += size_per_write
+        sector_offset += sector_num_write
+        usbdldev.dev_info.set_fraction(float(size_written)/img_total_size)
+    dbg("End of " + get_cur_func_name())
 
 
 def usb_dl_ram_loader(usbdldev, img_buf):
     dbg("enter: ", get_cur_func_name())
     sys.stdout.flush()
+    usbdldev.dev_info.set_info("Updating Ramloader")
+    usbdldev.dev_info.set_status("update")
+    usbdldev.dev_info.set_fraction(0)
+
     RAMLOADER_SECTOR_OFFSET = 0   # the first sector, of course
     write_large_buf(usbdldev, img_buf, RAMLOADER_SECTOR_OFFSET, SECTOR_SIZE)
+    usbdldev.dev_info.set_fraction(1)
+    
     info("^^^^^^^ ram loader sent")
+    usbdldev.dev_info.set_info("Ramloader restarting ...")
+    time.sleep(random.randint(0, usbdldev.reboot_delay))
     try:
         write_sectors(usbdldev, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
     except USBError as e:
@@ -98,6 +128,7 @@ def usb_dl_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     # assert(isinstance(usbdldev, int))
     assert(isinstance(mtd_part_start_addr, int))
     assert(isinstance(mtd_part_size, int))
+
     ret = False
     dbg(get_cur_func_name() +
         "(): mtd_part_start_addr=0x%.8x, mtd_part_size=0x%.8x" % 
@@ -111,7 +142,8 @@ def usb_dl_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
 
     # write yaffs2
     dbg("Start to write yaffs2")
-
+    usbdldev.dev_info.set_fraction(0)
+    
     size_written, size_nand_page, size_nand_spare = \
             parse_yaffs2_header(img_buf[:SIZE_YAFFS2_HEADER])
     pair_cnt_per_nand_block = SIZE_PER_WRITE / size_nand_page
@@ -176,6 +208,7 @@ def usb_dl_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
                 SECTOR_NUM_PER_WRITE)
         size_written += size_to_write
         sector_offset += SECTOR_NUM_PER_WRITE
+        usbdldev.dev_info.set_fraction(float(size_written)/img_total_size)
 
     dbg("Write yaffs2 to nand finished")
     buf = chr(0x00)

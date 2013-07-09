@@ -229,8 +229,8 @@ def usb_dl_thread_func_wrapper(dev, port_id, options, img_buf_dict):
     try:
         if do_profile:
             pr.runcall(usb_dl_thread_func, dev, port_id, options, img_buf_dict)
-
-        usb_dl_thread_func(dev, port_id, options, img_buf_dict)
+        else:
+            usb_dl_thread_func(dev, port_id, options, img_buf_dict)
     except Exception as e:
         is_failed = True
         traceback.print_exc()

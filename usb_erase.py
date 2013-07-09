@@ -43,6 +43,7 @@ def usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, is_yaffs2):
     buf += int32_le_to_str_be(mtd_part_size)
     buf += NULL_CHAR * (SECTOR_SIZE - len(buf))
     write_sectors(usbdldev, buf, USB_PROGRAMMER_SET_NAND_PARTITION_INFO, 1)
+    usbdldev.dev_info.set_fraction(0.01)
 
     dbg("Start to erase")
     nand_start_erase_addr = mtd_part_start_addr
@@ -55,6 +56,8 @@ def usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, is_yaffs2):
         write_sectors(usbdldev, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1, ERASE_TIMEOUT)
         nand_start_erase_addr += size_to_erase
         nand_erase_size    -= size_to_erase
+        usbdldev.dev_info.set_fraction(float((mtd_part_size-nand_erase_size))/mtd_part_size)
+    usbdldev.dev_info.set_fraction(1)
     dbg("Erase succeed")
 
 def usb_erase_whole_nand_flash(usbdldev):

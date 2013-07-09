@@ -340,26 +340,6 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
     raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
 
 
-def write_large_buf(usbdldev, large_buf, sector_offset,
-        size_per_write = SIZE_PER_WRITE):
-    img_total_size = len(large_buf)
-    dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
-    dbg(get_cur_func_name(), "(): total sector num=",
-            (float(img_total_size)/SECTOR_SIZE))
-    size_written = 0
-    while size_written < img_total_size:
-        buf_end_offset = min(img_total_size, size_written + size_per_write)
-        sector_num_write = (buf_end_offset - size_written + \
-                SECTOR_SIZE - 1)/SECTOR_SIZE
-        buf = large_buf[size_written : buf_end_offset]
-        buf_len = buf_end_offset - size_written
-        if buf_len < size_per_write:
-            buf += NULL_CHAR * (sector_num_write*SECTOR_SIZE - buf_len)
-        write_sectors(usbdldev, buf, sector_offset, sector_num_write)
-        size_written += size_per_write
-        sector_offset += sector_num_write
-    dbg("End of " + get_cur_func_name())
-
 
 def get_usb_dev_eps(dev):
     info("~~~~~~~~ get_usb_dev_eps: dev=", dev.__dict__)

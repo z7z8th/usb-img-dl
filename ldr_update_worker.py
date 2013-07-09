@@ -11,9 +11,17 @@ class ldr_update_worker(object):
         self.dlr_opts = dlr_opts
         self.dev_opts = dev_opts
 
+        
+    def update_info(self, info):
+        self.dev_opts.dev_info.set_info(info)
+
+    def update_status(self, status):
+        self.dev_opts.dev_info.set_status(status)
+        
+
     def work(self):
-        set_dl_img_type(eps, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-        usb_dl_ram_loader(eps, img_buf_dict[IMG_LDR_APP])
+        set_dl_img_type(self.dev_opts, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
+        usb_dl_ram_loader(self.dev_opts, img_buf_dict[IMG_LDR_APP])
         time.sleep(1)
 
         LDR_RAM_idVendor  = 0x18D1
@@ -27,7 +35,7 @@ class ldr_update_worker(object):
         dev = None
         WAIT_ATTACH_RETRY = 30
         for i in range(WAIT_ATTACH_RETRY):
-            time.sleep(0.5)
+            time.sleep(1)
             info("Wait updated device to attach: %d/%d" % (i, WAIT_ATTACH_RETRY))
             dev = usb.core.find( find_all = True,
                                  backend = libusbx1.get_backend(),
