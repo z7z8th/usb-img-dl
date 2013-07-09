@@ -73,9 +73,11 @@ class dev_info_bar(gtk.Box):
         
 if __name__ == '__main__':
 #    configs.debug = True
+    win = gtk.Window()
     info_bar = dev_info_bar()
     info_bar2 = dev_info_bar()
-    info_bar.connect('delete-event', gtk.main_quit)
-    info_bar.show_all()
+    win.add(info_bar)
+    win.connect('delete-event', gtk.main_quit)
+    win.show_all()
     
     gtk.main()
