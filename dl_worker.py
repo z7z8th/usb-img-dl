@@ -4,13 +4,16 @@ from const_vars import *
 from usb_misc import *
 from usb_dl import *
 import type_call_dict
+from ldr_update_worker import ldr_update_worker
+from usb_generic import get_usb_dev_eps
+from usb_probe import verify_im_ldr_usb
 
 class dl_worker(threading.Thread):
     def __init__(self, dlr_opts, dev_opts):
         threading.Thread.__init__(self)
         self.dlr_opts = dlr_opts
         self.dev_opts = dev_opts
-        self.dev_opts.reboot_delay = dlr_opts.reboot_delay
+        self.dev_opts.reboot_delay = 0 #dlr_opts.reboot_delay
         self.ldr_update_worker = ldr_update_worker(dlr_opts, dev_opts)
 
     def update_info(self, info):
@@ -21,9 +24,11 @@ class dl_worker(threading.Thread):
         
 
     def run(self):
-        warn("start working")
-        self.check_dev()
-        
+        with self.dev_opts.libusb_lock:
+            warn("start working")
+            self.check_dev()
+
+        self.update_status("download")
         ############### set dl type to flash ###############
         set_dl_img_type(usbdldev, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
 
@@ -46,11 +51,12 @@ class dl_worker(threading.Thread):
                 raise Exception("Unknown img type")
 
         self.update_info("All Done")
+        self.update_status("success")
 
         
     def check_dev(self):
         self.update_status("test")
-        usbdldev = get_usb_dev_eps(dev)
+        usbdldev = get_usb_dev_eps(self.dev_opts.dev)
         if usbdldev is None:
             wtf("Unable to find bootloader.")
         ret = verify_im_ldr_usb(usbdldev)
@@ -60,5 +66,5 @@ class dl_worker(threading.Thread):
             info("Updating Ram Loader...")
             self.dev_opts = self.ldr_update_worker.work()
         else:
-            self.dev_opts.__dict__.update(dict(usbdldev))
+            self.dev_opts.__dict__.update(usbdldev.__dict__)
 

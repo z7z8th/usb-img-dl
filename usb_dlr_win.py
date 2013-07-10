@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
+import sys
 import time
+import os
 import threading
+import mmap
 
 import pygtk
 pygtk.require('2.0')
@@ -9,11 +12,14 @@ import gtk
 import gobject
 
 from dev_info_bar import dev_info_bar
+from dl_manager import dl_manager
 
 import configs
 from debug_utils import *
 import mtd_part_alloc
 import type_call_dict
+from bsp_pkg_check import bsp_pkg_check
+
 
 class usb_dlr_win(gtk.Window):
     __gtype_name__  = 'usb_dlr_win'
@@ -23,9 +29,9 @@ class usb_dlr_win(gtk.Window):
         self.set_default_size(800, 500)
         self.set_border_width(4)
         self.connect('delete-event', self.on_delete_event)
-        self.downloading = False
 
         self.init_usb_dlr_options()
+        self.manager = None
 
         self.vbox = gtk.VBox(spacing=4)
         self.add(self.vbox)
@@ -49,6 +55,11 @@ class usb_dlr_win(gtk.Window):
         hbox.pack_start(self.choose_pkg_btn, False, False)
         self.vbox.pack_start(hbox, False, False)
 
+        run_btn = gtk.Button("Run")
+        run_btn.connect("clicked", self.start_manager)
+        hbox.pack_end(run_btn, False, False)
+        
+
         # device area
         dev_frame = gtk.Frame("Devices")
         self.vbox.pack_start(dev_frame, True, True)
@@ -56,7 +67,8 @@ class usb_dlr_win(gtk.Window):
         self.dev_table = gtk.Table(8, 2)
         self.dev_table.set_homogeneous(True)
         dev_frame.add(self.dev_table)
-#        self.vbox.pack_start(self.dev_table, True, True)
+        # self.vbox.pack_start(self.dev_table, True, True)
+        self.dev_info_list = []
 
         for i in range(16):
             col = i / 8;
@@ -68,7 +80,8 @@ class usb_dlr_win(gtk.Window):
             self.dev_table.attach(dev_info,
                                   col, col+1, row, row+1,
                                   xpadding=6, ypadding=6)
-
+            self.dev_info_list.append(dev_info)
+            
         # self.status_bar = gtk.Statusbar()
         # self.status_bar_ctx_id = self.status_bar.get_context_id("default")
         # self.vbox.pack_start(self.status_bar, False, False)
@@ -80,7 +93,8 @@ class usb_dlr_win(gtk.Window):
         class usb_dlr_options(object):
             pass
         options = usb_dlr_options()
-        options.pkg_path = None
+        options.win = self
+        options.pkg_path = ""
         options.erase_all = True
         options.reserve_mdata = False
         self.options = options
@@ -153,12 +167,18 @@ class usb_dlr_win(gtk.Window):
         
 
     def on_delete_event(self, widget, event):
+        pinfo("(II) main quit")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pinfo("(II) stdout/stderr flushed")
+        # os._exit(0)
         return False
         
 
     def on_pkg_path_entry_changed(self, widget):
         self.options.pkg_path = widget.get_text()
         info("pkg_path:", self.options.pkg_path)
+            
 
         
     def choose_pkg_cb(self, btn):
@@ -180,28 +200,59 @@ class usb_dlr_win(gtk.Window):
     def map_img_buf(self):
         pkg_path = self.options.pkg_path
         if not os.path.exists(pkg_path):
-            wtf("Package not found in: ", pkg_path)
+            self.alert("Package not found in: " + pkg_path)
         chk_rslt, pkg_img_pos_dict = bsp_pkg_check(pkg_path)
         if not chk_rslt:
-            wtf("Failed to verify bsp package: ", pkg_path)
+            self.alert("Failed to verify bsp package: ", pkg_path)
+            return False
         info(pkg_img_pos_dict)
         # open pkg buffer
         pkg_fd = open(pkg_path, 'rb')
         pkg_buf = mmap.mmap(pkg_fd.fileno(), 0, access = mmap.ACCESS_READ)
         # gen burn list
-        self.options.burn_list = ''
         self.options.img_buf_dict = dict()
         for i, pkg_img_pos in pkg_img_pos_dict.items():
             img_start, img_size = pkg_img_pos
-            img_buf = pkg_buf[img_start, img_start + img_size]
+            img_end = img_start + img_size
+            img_buf = pkg_buf[img_start:img_end]
             self.options.img_buf_dict[i] = img_buf
+        return True
+
+            
+    def _update_status(self, text):
+        self.status_bar.set_text(text)
+
+    def _alert(self, msg, level = gtk.MESSAGE_INFO):
+        dialog = gtk.MessageDialog(
+            self,
+            gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+            level, gtk.BUTTONS_OK,
+            msg)
+        dialog.run()
+        dialog.destroy()
+
+    def update_status(self, text):
+        gobject.idle_add(self._update_status, text)
+
+    def alert(self, level, msg):
+        gobject.idle_add(self._alert, level, msg)
+
+    def start_manager(self, widget=None):
+        if not self.map_img_buf():
+            return
+        class device_options(object):
+            pass
+        dev_opts = device_options()
+        self.manager = dl_manager(self.options, dev_opts)
+        self.manager.start()
 
         
         
 if __name__ == '__main__':
     configs.debug = True
     dlr_win = usb_dlr_win()
-    dlr_win.connect('delete-event', gtk.main_quit)
+    #dlr_win.connect('delete-event', gtk.main_quit)
     dlr_win.show_all()
+    # dlr_win.start_manager()
     
     gtk.main()

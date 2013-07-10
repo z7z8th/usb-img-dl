@@ -14,7 +14,8 @@ class dev_info_bar(gtk.Box):
 
     def __init__(self):
         gtk.Widget.__init__(self)
-#        self.set_default_size(300, 50)
+        # self.set_default_size(300, 50)
+        self.port_id = None
         self.hbox = gtk.HBox(spacing=4)
         self.pack_start(self.hbox, True, True)
 
