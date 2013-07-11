@@ -1,3 +1,4 @@
+import os
 import threading
 import cPickle as pickle
 
@@ -8,7 +9,8 @@ class port_id_mapper(object):
 
     @staticmethod
     def init():
-        port_id_mapper.load()
+        if os.path.exists(port_id_mapper.default_file):
+            port_id_mapper.load()
 
     @staticmethod
     def map_new(port_id):
@@ -46,7 +48,7 @@ class port_id_mapper(object):
     def dump_to_stdout():
         print port_id_mapper.id_map
 
-port_id_mapper.load()
+port_id_mapper.init()
 
 
 if __name__ == '__main__':

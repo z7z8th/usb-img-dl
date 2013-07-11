@@ -7,6 +7,8 @@ import type_call_dict
 from ldr_update_worker import ldr_update_worker
 from usb_generic import get_usb_dev_eps
 from usb_probe import verify_im_ldr_usb
+from usb_erase import usb_erase_whole_nand_flash
+import port_id_mapper
 
 class dl_worker(threading.Thread):
     def __init__(self, dlr_opts, dev_opts):
@@ -16,18 +18,27 @@ class dl_worker(threading.Thread):
         self.dev_opts.reboot_delay = 0 #dlr_opts.reboot_delay
         self.ldr_update_worker = ldr_update_worker(dlr_opts, dev_opts)
 
+    def update_label(self, text):
+        self.dev_opts.dev_info.set_label(text)
+
     def update_info(self, info):
         self.dev_opts.dev_info.set_info(info)
 
     def update_status(self, status):
         self.dev_opts.dev_info.set_status(status)
-        
+
+    def update_fraction(self, fraction):
+        self.dev_opts.dev_info.set_fraction(fraction)
 
     def run(self):
+        start_time = time.time()
+        self.update_label("Device %2d" % \
+                     port_id_mapper.port_id_mapper.get_user_id(self.dev_opts.dev_info.port_id))
         with self.dev_opts.libusb_lock:
             warn("start working")
             self.check_dev()
 
+        usbdldev = self.dev_opts
         self.update_status("download")
         ############### set dl type to flash ###############
         set_dl_img_type(usbdldev, DOWNLOAD_TYPE_FLASH, FLASH_BASE_ADDR)
@@ -50,7 +61,9 @@ class dl_worker(threading.Thread):
             else:
                 raise Exception("Unknown img type")
 
-        self.update_info("All Done")
+        time_used = time.time() - start_time
+        self.update_fraction(1)
+        self.update_info("Done. Time used: %d s" % time_used)
         self.update_status("success")
 
         

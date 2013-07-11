@@ -6,7 +6,7 @@ def update_type_call_dict():
     global type_call_dict
     type_call_dict = {
         IMG_BAREBOX : {'std_name':"barebox",   'name_pattern':r'barebox',
-                       'img_type':'dyn_id', 'func_params':(ID_BAREBOX)},
+                       'img_type':'dyn_id', 'func_params':(ID_BAREBOX,)},
 
         IMG_BOOTIMG : {'std_name':'boot',          'name_pattern':r'boot',
                        'img_type':'raw',
@@ -29,7 +29,7 @@ def update_type_call_dict():
                                             mtd_part_alloc.PS_MODEM_LENGTH)},
 
         IMG_ICON : {'std_name':'charging-icon', 'name_pattern':r'lcm|icon',
-                    'img_type':'dyn_id', 'func_params':(ID_ICON)},
+                    'img_type':'dyn_id', 'func_params':(ID_ICON,)},
 
         IMG_USER_DATA : {'std_name':'userdata',
                          'name_pattern':r'udata|userdata',
@@ -48,15 +48,15 @@ def update_type_call_dict():
                                             mtd_part_alloc.MDATA_LENGTH)},
 
         IMG_IMEI : {'std_name':'IMEI-data',     'name_pattern':r'imei',
-                    'img_type':'dyn_id', 'func_params':(ID_IMEI)},
+                    'img_type':'dyn_id', 'func_params':(ID_IMEI,)},
 
         IMG_BAREBOX_ENV : {'std_name':'barebox-data',
                            'name_pattern':r'barebox-data',
-                           'img_type':'dyn_id', 'func_params':(ID_BAREBOX_ENV)},
+                           'img_type':'dyn_id', 'func_params':(ID_BAREBOX_ENV,)},
 
         IMG_LDR_APP : {'std_name':'ram-loader',
                        'name_pattern':r'ram_ldr|ldr_app|ram_loader',
-                       'img_type':'dyn_id', 'func_params':(ID_LDR_APP)},
+                       'img_type':'dyn_id', 'func_params':(ID_LDR_APP,)},
         }
 
 

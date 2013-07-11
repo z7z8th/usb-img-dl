@@ -6,8 +6,6 @@ import struct
 import time
 import array
 import mmap
-import copy
-import subprocess
 from usb.core import USBError
 
 from const_vars import *
@@ -15,8 +13,8 @@ from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from usb_misc import set_dl_img_type
-from usb_generic import read_sectors, write_sectors, capacity_info
-from usb_erase import *
+from usb_generic import read_sectors, write_sectors
+from usb_part import *
 
 
 def write_large_buf(usbdldev, large_buf, sector_offset,
@@ -76,8 +74,8 @@ def usb_dl_ram_loader_file_to_ram(usbdldev, loader_path):
 
 
 def usb_dl_dyn_id(usbdldev, img_buf, dyn_id):
-    # erase and set nand partition info
-    usb_erase_dyn_id(usbdldev, dyn_id)
+    # set nand partition info
+    set_part_dyn_id(usbdldev, dyn_id)
     sector_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET / SECTOR_SIZE
     # start write img
     write_large_buf(usbdldev, img_buf, sector_offset)
@@ -85,8 +83,8 @@ def usb_dl_dyn_id(usbdldev, img_buf, dyn_id):
 
 def usb_dl_raw(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     sector_offset = mtd_part_start_addr / SECTOR_SIZE
-    # erase first
-    usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, False)
+    # set part info first
+    set_part_generic(usbdldev, mtd_part_start_addr, mtd_part_size, False)
     # start write img
     write_large_buf(usbdldev, img_buf, sector_offset)
 
@@ -137,8 +135,7 @@ def usb_dl_yaffs2(usbdldev, img_buf, mtd_part_start_addr, mtd_part_size):
     img_total_size = len(img_buf)
     dbg("img_total_size=0x%x" % img_total_size)
 
-    # erase nand partition
-    usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, True)
+    set_part_generic(usbdldev, mtd_part_start_addr, mtd_part_size, True)
 
     # write yaffs2
     dbg("Start to write yaffs2")

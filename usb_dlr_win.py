@@ -73,7 +73,7 @@ class usb_dlr_win(gtk.Window):
         for i in range(16):
             col = i / 8;
             row = i % 8;
-            label = "Device %2d" % (i+1)
+            label = "Device #"
             dev_info = dev_info_bar()
             dev_info.set_label(label)
             dev_info.set_info("Disconnected")
@@ -166,15 +166,6 @@ class usb_dlr_win(gtk.Window):
         return gen_item
         
 
-    def on_delete_event(self, widget, event):
-        pinfo("(II) main quit")
-        sys.stdout.flush()
-        sys.stderr.flush()
-        pinfo("(II) stdout/stderr flushed")
-        # os._exit(0)
-        return False
-        
-
     def on_pkg_path_entry_changed(self, widget):
         self.options.pkg_path = widget.get_text()
         info("pkg_path:", self.options.pkg_path)
@@ -238,6 +229,7 @@ class usb_dlr_win(gtk.Window):
         gobject.idle_add(self._alert, level, msg)
 
     def start_manager(self, widget=None):
+        self.pkg_path_entry.set_text("/opt2/bsp-packages/BSP12.7.5_DSIM_HVGA_20121012/BSP12_DSIM_HVGA_20121012_Image")
         if not self.map_img_buf():
             return
         class device_options(object):
@@ -245,11 +237,24 @@ class usb_dlr_win(gtk.Window):
         dev_opts = device_options()
         self.manager = dl_manager(self.options, dev_opts)
         self.manager.start()
+        warn("(WW) manager started")
 
+
+    def on_delete_event(self, widget, event):
+        pinfo("(II) main quit")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pinfo("(II) stdout/stderr flushed")
+        gtk.main_quit()
+        print "****** after quit"
+        os._exit(0)
+        return False
+        
         
         
 if __name__ == '__main__':
     configs.debug = True
+    gobject.threads_init()
     dlr_win = usb_dlr_win()
     #dlr_win.connect('delete-event', gtk.main_quit)
     dlr_win.show_all()

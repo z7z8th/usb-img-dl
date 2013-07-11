@@ -20,14 +20,14 @@ class dl_manager(threading.Thread):
         self.running_set_lock = threading.Lock()
         self.running_set = set()
         self.port_id_dev_info_dict = {}
+        self.worker_dict = {}
 
     def run(self):
         pinfo("(II) dl_manager started")
         LDR_ROM_idVendor  = 0x18d1 #0x0851 #0x18d1
-        LDR_ROM_idProduct = 0x0fff #0x0002 #0x0fff
+        LDR_ROM_idProduct = 0x0002 #0x0002 #0x0fff
 
-        worker_dict = {}
-
+        
         while True:
             with self.libusb_lock:
                 dev_list = usb.core.find(find_all = True, 
@@ -67,32 +67,39 @@ class dl_manager(threading.Thread):
                     self.port_id_dev_info_dict[port_id] = dev_opts.dev_info
                     worker = dl_worker(self.dlr_opts, dev_opts)
 
-                    worker_dict[port_id] = worker
+                    self.worker_dict[port_id] = worker
                     # self.port_id_dev_dict[port_id] = dev
                     worker.start()
 
                 self.update_running_set(cur_set)
             time.sleep(4)
 
-    def update_dev_info_status(self, port_id_list, status):
+    def update_dev_info_status(self, port_id_list, status=None,
+                               fraction=None, info=None):
         for i in port_id_list:
-            self.port_id_dev_info_dict[i].set_status(status)
-            
+            if status is not None:
+                self.port_id_dev_info_dict[i].set_status(status)
+            if fraction is not None:
+                self.port_id_dev_info_dict[i].set_fraction(fraction)
+            if info is not None:
+                self.port_id_dev_info_dict[i].set_info(info)
 
     def update_running_set(self, cur_set):
         with self.running_set_lock:
             disconn_set = self.running_set - cur_set
             self.join_disconn_worker(disconn_set)
             self.running_set -= disconn_set
-            self.update_dev_info_status(disconn_set, "disconnect")
+            self.update_dev_info_status(disconn_set, "disconnect", 0, "Disconnected")
+            for i in disconn_set:
+                self.port_id_dev_info_dict[i].port_id = None
 
     def join_disconn_worker(self, port_id_set):
         for i in port_id_set:
             if self.worker_dict[i].is_alive():
                 self.win.alert("Device disconnected, but Thread still alive!")
-                self.worker_dict[port_id].join(5)
+                self.worker_dict[i].join(5)
             else:
-                self.worker_dict[port_id].join()
+                self.worker_dict[i].join()
             
             
     def get_idle_dev_info(self):
