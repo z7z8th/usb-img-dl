@@ -23,7 +23,7 @@ from bsp_pkg_check import bsp_pkg_check
 
 class usb_dlr_options(object):
     def __init__(self, win):
-        self.default_options_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dlr_options")
+        self.default_options_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".dlr_options")
         ret = self.load()
         self.win = win
         if ret is False:
@@ -258,7 +258,7 @@ class usb_dlr_win(gtk.Window):
         gobject.idle_add(self._alert, msg, level)
 
     def start_manager(self, widget=None):
-        self.pkg_path_entry.set_text("/opt2/bsp-packages/BSP12.7.5_DSIM_HVGA_20121012/BSP12_DSIM_HVGA_20121012_Image")
+        # self.pkg_path_entry.set_text("/opt2/bsp-packages/BSP12.7.5_DSIM_HVGA_20121012/BSP12_DSIM_HVGA_20121012_Image")
         if not self.map_img_buf():
             return
         class device_options(object):

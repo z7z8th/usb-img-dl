@@ -5,3 +5,5 @@ tags
 /cscope*.out
 *~
 profile/*
+.dlr_options
+.id_map

@@ -5,7 +5,7 @@ import cPickle as pickle
 class port_id_mapper(object):
     lock = threading.Lock()
     id_map = {}
-    default_file = "id_map.dict"
+    default_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".id_map")
 
     @staticmethod
     def init():
