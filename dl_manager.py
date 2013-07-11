@@ -24,8 +24,8 @@ class dl_manager(threading.Thread):
 
     def run(self):
         pinfo("(II) dl_manager started")
-        LDR_ROM_idVendor  = 0x18d1 #0x0851 #0x18d1
-        LDR_ROM_idProduct = 0x0002 #0x0002 #0x0fff
+        LDR_ROM_idVendor  = 0x0851   #0x0851 #0x18d1
+        LDR_ROM_idProduct = 0x0002   #0x0002 #0x0fff
 
         
         while True:
@@ -87,19 +87,23 @@ class dl_manager(threading.Thread):
     def update_running_set(self, cur_set):
         with self.running_set_lock:
             disconn_set = self.running_set - cur_set
-            self.join_disconn_worker(disconn_set)
+            disconn_set = self.join_disconn_worker(disconn_set)
             self.running_set -= disconn_set
             self.update_dev_info_status(disconn_set, "disconnect", 0, "Disconnected")
             for i in disconn_set:
                 self.port_id_dev_info_dict[i].port_id = None
 
     def join_disconn_worker(self, port_id_set):
+        alive_set = set()
         for i in port_id_set:
             if self.worker_dict[i].is_alive():
-                self.win.alert("Device disconnected, but Thread still alive!")
-                self.worker_dict[i].join(5)
+                # self.win.alert("Device disconnected, but Thread still alive!")
+                # self.worker_dict[i].join(5)
+                alive_set.add(i)
             else:
                 self.worker_dict[i].join()
+
+        return port_id_set - alive_set
             
             
     def get_idle_dev_info(self):

@@ -5,6 +5,9 @@ import libusbx1
 from const_vars import *
 from usb_misc import *
 from usb_dl import *
+from usb_generic import get_usb_dev_eps
+from usb_probe import verify_im_ldr_usb
+import configs
 
 class ldr_update_worker(object):
     def __init__(self, dlr_opts, dev_opts):
@@ -17,20 +20,20 @@ class ldr_update_worker(object):
 
     def update_status(self, status):
         self.dev_opts.dev_info.set_status(status)
-        
 
     def work(self):
         set_dl_img_type(self.dev_opts, DOWNLOAD_TYPE_RAM, RAM_BOOT_BASE_ADDR)
-        usb_dl_ram_loader(self.dev_opts, img_buf_dict[IMG_LDR_APP])
+        usb_dl_ram_loader_file_to_ram(self.dev_opts, configs.ram_loader_path)
         time.sleep(1)
 
+        old_dev = self.dev_opts.dev
         LDR_RAM_idVendor  = 0x18D1
         LDR_RAM_idProduct = 0x0FFF
         raw_dev_match_dict = {
             'idVendor'  : LDR_RAM_idVendor,
             'idProduct' : LDR_RAM_idProduct,
-            'bus'       : dev.bus,
-            'port_path' : get_port_path(dev)
+            'bus'       : old_dev.bus,
+            'port_path' : get_port_path(old_dev)
         }
         dev = None
         WAIT_ATTACH_RETRY = 30
@@ -52,12 +55,12 @@ class ldr_update_worker(object):
             raise Exception("Wait update device to attach failed!")
 
         assert(len(dev) == 1)
-        with self.dlr_opts.get_dev_eps_lock:
-            usbdldev = get_usb_dev_eps(dev[0])
-            ret = verify_im_ldr_usb(usbdldev)
-            if not ret or ret == "ldr-update":
-                raise Exception("Update Ramloader failed!")
-            self.dev_opts.__dict__.update(dict(usbdldev))
-            return self.dev_opts
+
+        usbdldev = get_usb_dev_eps(dev[0])
+        ret = verify_im_ldr_usb(usbdldev)
+        if not ret or ret == "ldr-update":
+            raise Exception("Update Ramloader failed!")
+        self.dev_opts.__dict__.update(usbdldev.__dict__)
+        return self.dev_opts
         
         

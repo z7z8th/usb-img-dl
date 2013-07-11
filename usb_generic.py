@@ -79,10 +79,11 @@ def usb_clear_dev_halt(usbdldev):
         usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
         return usbdldev
     except:
-        warn("clear dev halt fail, reset device")
+        # warn("clear dev halt fail, reset device")
         # FIXME: reset works fine?
-        usbdldev.dev.reset()
-        return get_usb_dev_eps(usbdldev.dev)
+        #usbdldev.dev.reset()
+        #return get_usb_dev_eps(usbdldev.dev)
+        return usbdldev
 
 
 def usb_test_clear_halt(dev, ep_num):
@@ -132,13 +133,13 @@ def print_inquiry_data(inquiry_buf):
 
 INQUIRY = 0x12
 INQUIRY_DATA_LEN = 36
-def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
+def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
     info("======== inquiry_info")
     cdb = chr(INQUIRY) + NULL_CHAR*3 + chr(INQUIRY_DATA_LEN) + NULL_CHAR
     ret_buf=None
 
     ri = 0
-    while ri < RETRY_MAX:
+    while ri <= retry_cnt:
         ret = None
         try:
             if ri > 0:
@@ -166,23 +167,25 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             assert(len(inquiry_buf) >= min(36, INQUIRY_DATA_LEN) )
         except Exception as e:
             traceback.print_exc()
+            if retry_cnt == ri:
+                return None
             ri += 1
-            warn("inquiry_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            warn("inquiry_info fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
             usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return ret_buf
 
-    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % retry_cnt)
 
 
 READ_CAPACITY = 0x25
-def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
+def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
     info("======== capacity_info")
     cdb = chr(READ_CAPACITY) + NULL_CHAR * 9  #READ_CAPACITY
 
     ri = 0
-    while ri < RETRY_MAX:
+    while ri <= retry_cnt:
         ret = None
         try:
             if ri > 0:
@@ -212,14 +215,16 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT):
             #dbg("CSW Status=", csw_data[12])
         except Exception as e:
             traceback.print_exc()
+            if retry_cnt == ri:
+                return None
             ri += 1
-            warn("capacity_info fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            warn("capacity_info fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
             usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return lastblock, blocksize
 
-    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % retry_cnt)
 
 
 def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
@@ -235,7 +240,7 @@ def write_cbw(ep_out, direction, data_len, cdb, timeout=DEFAULT_TIMEOUT):
     return ret
 
 READ_10 = 0x28
-def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT, retry_cnt = RETRY_MAX):
     timeout = min(MAX_TIMEOUT, timeout * sector_num)
     rd_size = sector_num * SECTOR_SIZE
     cdb = chr(READ_10) + NULL_CHAR
@@ -248,7 +253,7 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
     sector_data = None
 
     ri = 0
-    while ri < RETRY_MAX:
+    while ri <= retry_cnt:
         ret = None
         try:
             if ri > 0:
@@ -273,17 +278,19 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
             # dbg("CSW Status=", csw_data[12])
         except Exception as e:
             traceback.print_exc()
+            if retry_cnt == ri:
+                return None
             ri += 1
-            warn("read_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            warn("read_sectors fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
             usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return sector_data
 
-    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % retry_cnt)
 
 WRITE_10 = 0x2a
-def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT):
+def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
     timeout = min(MAX_TIMEOUT, timeout * sector_num)
     # dbg("wr sec: sector_offset=%x, sector_num=%x, timeout=%d" % \
     #         (sector_offset, sector_num, timeout))
@@ -297,7 +304,7 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
     cdb += NULL_CHAR
 
     ri = 0
-    while ri < RETRY_MAX:
+    while ri <= retry_cnt:
         ret = None
         try:
             if ri > 0:
@@ -328,15 +335,17 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
             #time.sleep(0.005)
         except Exception as e:
             traceback.print_exc()
+            if retry_cnt == ri:
+                return None
             ri += 1
-            warn("write_sectors fail; will retry: %d/%d. " % (ri, RETRY_MAX), e)
+            warn("write_sectors fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             # usb_clear_ep_stall(usbdldev.dev)
             time.sleep(1)
             usbdldev = usb_clear_dev_halt(usbdldev)
             continue
         return ret
 
-    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % RETRY_MAX)
+    raise Exception("Exceed RETRY_MAX(%d) limit. Fatal Error!"  % retry_cnt)
 
 
 

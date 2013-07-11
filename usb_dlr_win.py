@@ -5,6 +5,7 @@ import time
 import os
 import threading
 import mmap
+import cPickle as pickle
 
 import pygtk
 pygtk.require('2.0')
@@ -20,6 +21,40 @@ import mtd_part_alloc
 import type_call_dict
 from bsp_pkg_check import bsp_pkg_check
 
+class usb_dlr_options(object):
+    def __init__(self, win):
+        self.default_options_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), "dlr_options")
+        ret = self.load()
+        self.win = win
+        if ret is False:
+            self.pkg_path = ""
+            self.erase_all = True
+            self.reserve_mdata = False
+
+        print self.__dict__
+
+
+    def load(self, file=None):
+        if file is None:
+            file = self.default_options_file
+        if os.path.exists(file):
+            with open(file, 'rb') as f:
+                self.__dict__.update(pickle.load(f))
+                return True
+        else:
+            return False
+
+
+    def dump(self, file=None):
+        if file is None:
+            file = self.default_options_file
+        options = {}
+        options['pkg_path'] = self.pkg_path
+        options['erase_all'] = self.erase_all
+        options['reserve_mdata'] = self.reserve_mdata
+        with open(file, 'wb') as f:
+             pickle.dump(options, f)
+
 
 class usb_dlr_win(gtk.Window):
     __gtype_name__  = 'usb_dlr_win'
@@ -30,7 +65,7 @@ class usb_dlr_win(gtk.Window):
         self.set_border_width(4)
         self.connect('delete-event', self.on_delete_event)
 
-        self.init_usb_dlr_options()
+        self.options = usb_dlr_options(self)
         self.manager = None
 
         self.vbox = gtk.VBox(spacing=4)
@@ -46,7 +81,8 @@ class usb_dlr_win(gtk.Window):
 
         # choose pkg path
         hbox = gtk.HBox(spacing=4)
-        self.pkg_path_entry = gtk.Entry()
+        self.pkg_path_entry = gtk.Entry(max=4096)
+        self.pkg_path_entry.set_text(self.options.pkg_path)
         self.pkg_path_entry.connect("changed", self.on_pkg_path_entry_changed)
         hbox.pack_start(self.pkg_path_entry, True, True)
         self.choose_pkg_btn = gtk.Button("Choose Package")
@@ -88,28 +124,20 @@ class usb_dlr_win(gtk.Window):
         # self.status_bar.push(self.status_bar_ctx_id, "Ready")
         # self.status_bar.push(self.status_bar_ctx_id, "Hello")
 
-
-    def init_usb_dlr_options(self):
-        class usb_dlr_options(object):
-            pass
-        options = usb_dlr_options()
-        options.win = self
-        options.pkg_path = ""
-        options.erase_all = True
-        options.reserve_mdata = False
-        self.options = options
-
     def on_active_about_menu(self, widget):
-        info(self.options.__dict__)
+        # info(self.options.__dict__)
+        pass
 
     def on_active_erase_all(self, widget):
         self.options.erase_all = widget.get_active()
+        self.options.dump()
 
     def on_active_reset_port_map(self, widget):
         pass
 
     def on_active_reserve_mdata(self, widget):
         self.options.reserve_mdata = widget.get_active()
+        self.options.dump()
         info(self.options.__dict__)
 
     def on_bsp_alloc_changed(self, widget):
@@ -168,6 +196,7 @@ class usb_dlr_win(gtk.Window):
 
     def on_pkg_path_entry_changed(self, widget):
         self.options.pkg_path = widget.get_text()
+        self.options.dump()
         info("pkg_path:", self.options.pkg_path)
             
 
@@ -225,8 +254,8 @@ class usb_dlr_win(gtk.Window):
     def update_status(self, text):
         gobject.idle_add(self._update_status, text)
 
-    def alert(self, level, msg):
-        gobject.idle_add(self._alert, level, msg)
+    def alert(self, msg, level = gtk.MESSAGE_INFO):
+        gobject.idle_add(self._alert, msg, level)
 
     def start_manager(self, widget=None):
         self.pkg_path_entry.set_text("/opt2/bsp-packages/BSP12.7.5_DSIM_HVGA_20121012/BSP12_DSIM_HVGA_20121012_Image")

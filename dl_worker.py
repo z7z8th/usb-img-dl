@@ -16,7 +16,6 @@ class dl_worker(threading.Thread):
         self.dlr_opts = dlr_opts
         self.dev_opts = dev_opts
         self.dev_opts.reboot_delay = 0 #dlr_opts.reboot_delay
-        self.ldr_update_worker = ldr_update_worker(dlr_opts, dev_opts)
 
     def update_label(self, text):
         self.dev_opts.dev_info.set_label(text)
@@ -31,6 +30,14 @@ class dl_worker(threading.Thread):
         self.dev_opts.dev_info.set_fraction(fraction)
 
     def run(self):
+        try:
+            self.work()
+        except Exception as e:
+            traceback.print_exc()
+            self.update_info("Fail")
+            self.update_status("fail")
+
+    def work(self):
         start_time = time.time()
         self.update_label("Device %2d" % \
                      port_id_mapper.port_id_mapper.get_user_id(self.dev_opts.dev_info.port_id))
@@ -47,6 +54,7 @@ class dl_worker(threading.Thread):
             self.update_info("Erase whole nand Flash!")
             usb_erase_whole_nand_flash(self.dev_opts)
 
+        # return
         for img_id, img_buf in self.dlr_opts.img_buf_dict.items():
             dl_desc = type_call_dict.type_call_dict[img_id]['std_name']
             dl_type = type_call_dict.type_call_dict[img_id]['img_type']
@@ -69,6 +77,7 @@ class dl_worker(threading.Thread):
         
     def check_dev(self):
         self.update_status("test")
+        self.update_info("Checking")
         usbdldev = get_usb_dev_eps(self.dev_opts.dev)
         if usbdldev is None:
             wtf("Unable to find bootloader.")
@@ -77,6 +86,8 @@ class dl_worker(threading.Thread):
             wtf("Unable to verify bootloader.")
         elif ret == "ldr-update":
             info("Updating Ram Loader...")
+            self.dev_opts.__dict__.update(usbdldev.__dict__)
+            self.ldr_update_worker = ldr_update_worker(self.dlr_opts, self.dev_opts)
             self.dev_opts = self.ldr_update_worker.work()
         else:
             self.dev_opts.__dict__.update(usbdldev.__dict__)

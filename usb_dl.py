@@ -6,6 +6,7 @@ import struct
 import time
 import array
 import mmap
+import random
 from usb.core import USBError
 
 from const_vars import *
@@ -13,12 +14,12 @@ from debug_utils import *
 from utils import *
 import mtd_part_alloc
 from usb_misc import set_dl_img_type
-from usb_generic import read_sectors, write_sectors
+from usb_generic import read_sectors, write_sectors, RETRY_MAX
 from usb_part import *
 
 
 def write_large_buf(usbdldev, large_buf, sector_offset,
-        size_per_write = SIZE_PER_WRITE):
+                    size_per_write = SIZE_PER_WRITE, retry_cnt=RETRY_MAX):
     img_total_size = len(large_buf)
     dbg(get_cur_func_name(), "(): img_total_size=", img_total_size)
     dbg(get_cur_func_name(), "(): total sector num=",
@@ -33,7 +34,7 @@ def write_large_buf(usbdldev, large_buf, sector_offset,
         buf_len = buf_end_offset - size_written
         if buf_len < size_per_write:
             buf += NULL_CHAR * (sector_num_write*SECTOR_SIZE - buf_len)
-        write_sectors(usbdldev, buf, sector_offset, sector_num_write)
+        write_sectors(usbdldev, buf, sector_offset, sector_num_write, retry_cnt=retry_cnt)
         size_written += size_per_write
         sector_offset += sector_num_write
         usbdldev.dev_info.set_fraction(float(size_written)/img_total_size)
@@ -55,7 +56,8 @@ def usb_dl_ram_loader(usbdldev, img_buf):
     usbdldev.dev_info.set_info("Ramloader restarting ...")
     time.sleep(random.randint(0, usbdldev.reboot_delay))
     try:
-        write_sectors(usbdldev, img_buf[:SECTOR_SIZE], USB_PROGRAMMER_FINISH_MAGIC_WORD, 1)
+        write_sectors(usbdldev, img_buf[:SECTOR_SIZE],
+                      USB_PROGRAMMER_FINISH_MAGIC_WORD, 1, retry_cnt=0)
     except USBError as e:
         #warn("USBError", e)
         warn("Updated ram loader is restarting...")
