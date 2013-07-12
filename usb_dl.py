@@ -16,6 +16,7 @@ import mtd_part_alloc
 from usb_misc import set_dl_img_type
 from usb_generic import read_sectors, write_sectors, RETRY_MAX
 from usb_part import *
+from usb_erase import *
 
 
 def write_large_buf(usbdldev, large_buf, sector_offset,
@@ -76,6 +77,7 @@ def usb_dl_ram_loader_file_to_ram(usbdldev, loader_path):
 
 
 def usb_dl_dyn_id(usbdldev, img_buf, dyn_id):
+#    usb_erase_dyn_id(usbdldev, dyn_id)
     # set nand partition info
     set_part_dyn_id(usbdldev, dyn_id)
     sector_offset = mtd_part_alloc.DYN_ID_INIT_OFFSET / SECTOR_SIZE

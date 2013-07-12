@@ -25,3 +25,9 @@ ram_loader_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), DATA
 
 
 assert(cmp_version(ram_loader_integrated_versions, ram_loader_min_versions) >= 0)
+
+USB_ID_ROM = (0x0851, 0x0002)
+USB_ID_FASTBOOT = (0x18d1, 0x0fff)
+
+BSP12_NAME = "BSP12"
+BSP13_NAME = "BSP13"

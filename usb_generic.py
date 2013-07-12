@@ -48,21 +48,22 @@ def usb_clear_ep_stall(dev, ep_num):
 
 def usb_clear_halt(dev, ep_num):
     ri = 0
-    while ri < RETRY_MAX_CLEAR_HALT:
+    while ri <= RETRY_MAX_CLEAR_HALT:
         ret = None
         try:
             dbg("----->> clear halt: 0x%x" % ep_num)
             ret = dev._ctx.backend.clear_halt(dev._ctx.handle, ep_num)
             assert(ret == 0)
-            return ret
+            return
         except Exception as e:
             traceback.print_exc()
+            print e.__dict__
+            if ri == RETRY_MAX_CLEAR_HALT or \
+               e.backend_error_code == libusbx1.LIBUSB_ERROR_NOT_FOUND or \
+               e.backend_error_code == libusbx1.LIBUSB_ERROR_NO_DEVICE:
+                break
             ri += 1
             warn("*** clear halt fail; will retry: %d/%d. " % (ri, RETRY_MAX_CLEAR_HALT), e)
-            time.sleep(1)
-            #ret = dev._ctx.backend.clear_halt(dev._ctx.handle, 0)
-            #warn("*** cleared ep0 halt")
-            assert(ret == 0)
             time.sleep(1)
             continue
         
@@ -72,18 +73,11 @@ def usb_clear_halt(dev, ep_num):
 def usb_clear_dev_halt(usbdldev):
     # print "ep_out addr: 0x%x" % usbdldev.ep_out.bEndpointAddress
     # print "ep_in addr: 0x%x" % usbdldev.ep_in.bEndpointAddress
-    try:
-        # FIXME: need to clear ep0 halt?
-        #usb_clear_halt(usbdldev.dev, 0)
-        usb_clear_halt(usbdldev.dev, usbdldev.ep_out.bEndpointAddress)
-        usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
-        return usbdldev
-    except:
-        # warn("clear dev halt fail, reset device")
-        # FIXME: reset works fine?
-        #usbdldev.dev.reset()
-        #return get_usb_dev_eps(usbdldev.dev)
-        return usbdldev
+    # FIXME: need to clear ep0 halt?
+    #usb_clear_halt(usbdldev.dev, 0)
+    usb_clear_halt(usbdldev.dev, usbdldev.ep_out.bEndpointAddress)
+    usb_clear_halt(usbdldev.dev, usbdldev.ep_in.bEndpointAddress)
+
 
 
 def usb_test_clear_halt(dev, ep_num):
@@ -160,7 +154,7 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
                 dbg("*** sleep before csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
-            dbg("CSW read:", csw_data)
+            # dbg("CSW read:", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
             assert(csw_data[12] == 0)
             #dbg("CSW Status=", csw_data[12])
@@ -172,7 +166,8 @@ def inquiry_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
             ri += 1
             warn("inquiry_info fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
-            usbdldev = usb_clear_dev_halt(usbdldev)
+            if not usb_clear_dev_halt(usbdldev):
+                break
             continue
         return ret_buf
 
@@ -209,7 +204,7 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
                 dbg("*** sleep before csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
-            dbg("csw: ", csw_data)
+            # dbg("csw: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
             assert(csw_data[12] == 0)
             #dbg("CSW Status=", csw_data[12])
@@ -220,7 +215,8 @@ def capacity_info(usbdldev, timeout = DEFAULT_TIMEOUT, retry_cnt=RETRY_MAX):
             ri += 1
             warn("capacity_info fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
-            usbdldev = usb_clear_dev_halt(usbdldev)
+            if not usb_clear_dev_halt(usbdldev):
+                break
             continue
         return lastblock, blocksize
 
@@ -272,7 +268,7 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT, r
                 dbg("*** sleep befor csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
-            dbg("csw_data: ", csw_data)
+            # dbg("csw_data: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
             assert(csw_data[12] == 0)
             # dbg("CSW Status=", csw_data[12])
@@ -283,7 +279,8 @@ def read_sectors(usbdldev, sector_offset, sector_num, timeout=DEFAULT_TIMEOUT, r
             ri += 1
             warn("read_sectors fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             time.sleep(1)
-            usbdldev = usb_clear_dev_halt(usbdldev)
+            if not usb_clear_dev_halt(usbdldev):
+                break
             continue
         return sector_data
 
@@ -324,7 +321,7 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
                 dbg("*** sleep before csw")
                 time.sleep(2)
             csw_data = usbdldev.ep_in.read(CSW_SIZE, timeout)
-            dbg("csw_data: ", csw_data)
+            # dbg("csw_data: ", csw_data)
             assert(csw_data[:4].tostring() == CSW_SIGNATURE)
             assert(csw_data[12] == 0)
             #dbg("CSW Status=", csw_data[12])
@@ -341,7 +338,8 @@ def write_sectors(usbdldev, buf, sector_offset, sector_num, timeout=DEFAULT_TIME
             warn("write_sectors fail; will retry: %d/%d. " % (ri, retry_cnt), e)
             # usb_clear_ep_stall(usbdldev.dev)
             time.sleep(1)
-            usbdldev = usb_clear_dev_halt(usbdldev)
+            if not usb_clear_dev_halt(usbdldev):
+                break
             continue
         return ret
 

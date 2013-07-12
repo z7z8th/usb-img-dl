@@ -7,7 +7,7 @@ import type_call_dict
 from ldr_update_worker import ldr_update_worker
 from usb_generic import get_usb_dev_eps
 from usb_probe import verify_im_ldr_usb
-from usb_erase import usb_erase_whole_nand_flash
+from usb_erase import *
 import port_id_mapper
 
 class dl_worker(threading.Thread):
@@ -59,15 +59,22 @@ class dl_worker(threading.Thread):
             dl_desc = type_call_dict.type_call_dict[img_id]['std_name']
             dl_type = type_call_dict.type_call_dict[img_id]['img_type']
             dl_params = type_call_dict.type_call_dict[img_id]['func_params']
+            info("*** dl_params", *dl_params)
+            pinfo("Downloading "+dl_desc)
             self.update_info("Downloading "+dl_desc)
             if dl_type == 'dyn_id':
+                usb_erase_dyn_id(usbdldev, *dl_params)
                 usb_dl_dyn_id(usbdldev, img_buf, *dl_params)
             elif dl_type == 'raw':
+                usb_erase_generic(usbdldev, *dl_params)
                 usb_dl_raw(usbdldev, img_buf, *dl_params)
             elif dl_type == 'yaffs2':
+                usb_erase_generic(usbdldev, *dl_params)
                 usb_dl_yaffs2(usbdldev, img_buf, *dl_params)
             else:
                 raise Exception("Unknown img type")
+            if img_id == IMG_BAREBOX:
+                pass
 
         time_used = time.time() - start_time
         self.update_fraction(1)

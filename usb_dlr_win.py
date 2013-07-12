@@ -5,6 +5,7 @@ import time
 import os
 import threading
 import mmap
+import copy
 import cPickle as pickle
 
 import pygtk
@@ -26,10 +27,14 @@ class usb_dlr_options(object):
         self.default_options_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".dlr_options")
         ret = self.load()
         self.win = win
+        self.img_buf_dict = {}
         if ret is False:
             self.pkg_path = ""
             self.erase_all = True
             self.reserve_mdata = False
+            self.usb_id = configs.USB_ID_ROM
+            self.bsp_alloc = configs.BSP12_NAME
+
 
         print self.__dict__
 
@@ -48,12 +53,16 @@ class usb_dlr_options(object):
     def dump(self, file=None):
         if file is None:
             file = self.default_options_file
-        options = {}
-        options['pkg_path'] = self.pkg_path
-        options['erase_all'] = self.erase_all
-        options['reserve_mdata'] = self.reserve_mdata
+        opts = copy.copy(self.__dict__)
+        opts['img_buf_dict'] = {}
+        opts['win'] = None
+        # options['pkg_path'] = self.pkg_path
+        # options['erase_all'] = self.erase_all
+        # options['reserve_mdata'] = self.reserve_mdata
+        print opts
+        print self.win
         with open(file, 'wb') as f:
-             pickle.dump(options, f)
+             pickle.dump(opts, f)
 
 
 class usb_dlr_win(gtk.Window):
@@ -79,8 +88,28 @@ class usb_dlr_win(gtk.Window):
         self.about_menu_item.connect("activate", self.on_active_about_menu)
         self.menu_bar.add(self.about_menu_item)
 
+        # rom/fastboot selection
+        hbox = gtk.HBox(spacing=4)
+        self.vbox.pack_start(hbox, False, False)
+        group = None
+        usb_id_sel_rom = (gtk.RadioButton(group, "ROM %04X:%04X" % \
+                                              configs.USB_ID_ROM),
+                               configs.USB_ID_ROM)
+        group = usb_id_sel_rom[0]
+        group.connect("toggled", self.usb_id_on_sel)
+        usb_id_sel_fb = (gtk.RadioButton(group, "Fastboot %04X:%04X" % \
+                                                configs.USB_ID_FASTBOOT),
+                                configs.USB_ID_FASTBOOT)
+        self.usb_id_sel = [usb_id_sel_rom, usb_id_sel_fb]
+        for t in self.usb_id_sel:
+            hbox.pack_start(t[0], False, False)
+            if t[1] == self.options.usb_id:
+                t[0].set_active(True)
+
+        
         # choose pkg path
         hbox = gtk.HBox(spacing=4)
+        self.vbox.pack_start(hbox, False, False)
         self.pkg_path_entry = gtk.Entry(max=4096)
         self.pkg_path_entry.set_text(self.options.pkg_path)
         self.pkg_path_entry.connect("changed", self.on_pkg_path_entry_changed)
@@ -89,7 +118,6 @@ class usb_dlr_win(gtk.Window):
         self.choose_pkg_btn.set_border_width(4)
         self.choose_pkg_btn.connect("clicked", self.choose_pkg_cb)
         hbox.pack_start(self.choose_pkg_btn, False, False)
-        self.vbox.pack_start(hbox, False, False)
 
         run_btn = gtk.Button("Run")
         run_btn.connect("clicked", self.start_manager)
@@ -107,8 +135,8 @@ class usb_dlr_win(gtk.Window):
         self.dev_info_list = []
 
         for i in range(16):
-            col = i / 8;
-            row = i % 8;
+            col = i / 8
+            row = i % 8
             label = "Device #"
             dev_info = dev_info_bar()
             dev_info.set_label(label)
@@ -123,6 +151,14 @@ class usb_dlr_win(gtk.Window):
         # self.vbox.pack_start(self.status_bar, False, False)
         # self.status_bar.push(self.status_bar_ctx_id, "Ready")
         # self.status_bar.push(self.status_bar_ctx_id, "Hello")
+
+    def usb_id_on_sel(self, widget):
+        for w, id in self.usb_id_sel:
+            if w.get_active():
+                info(w.get_label(), "is selected")
+                self.options.usb_id = id
+                self.options.dump()
+                break
 
     def on_active_about_menu(self, widget):
         # info(self.options.__dict__)
@@ -142,12 +178,16 @@ class usb_dlr_win(gtk.Window):
 
     def on_bsp_alloc_changed(self, widget):
         info("BSP Alloc changed")
-        for (w, f) in self.options.bsp_alloc_item_list:
+        for (w, f, n) in self.bsp_alloc_item_list:
             if w.get_active():
                 info(w.get_label(), "is selected")
+                self.options.bsp_alloc = n
+                self.options.dump()
                 f()
                 break
         type_call_dict.update_type_call_dict()
+        mtd_part_alloc.print_allocation()
+        print type_call_dict.type_call_dict
             
     def create_menu(self):
         gen_item = gtk.MenuItem("_Options")
@@ -168,18 +208,22 @@ class usb_dlr_win(gtk.Window):
         bsp_alloc_item.set_submenu(bsp_alloc_menu)
         group = None
         bsp_alloc_item_list = []
-        bsp_alloc_bsp12_item = gtk.RadioMenuItem(group, "BSP1_2")
-        group = bsp_alloc_bsp12_item
-        bsp_alloc_bsp13_item = gtk.RadioMenuItem(group, "BSP1_3")
-        bsp_alloc_bsp12_item.set_active(True)
-        bsp_alloc_bsp12_item.connect("activate", self.on_bsp_alloc_changed)
-        bsp_alloc_item_list.append((bsp_alloc_bsp12_item,
-                                    mtd_part_alloc.use_bsp12_allocation))
-        bsp_alloc_item_list.append((bsp_alloc_bsp13_item,
-                                    mtd_part_alloc.use_bsp13_allocation))
-        self.options.bsp_alloc_item_list = bsp_alloc_item_list
-        bsp_alloc_menu.add(bsp_alloc_bsp12_item)
-        bsp_alloc_menu.add(bsp_alloc_bsp13_item)
+        bsp12_alloc_item = gtk.RadioMenuItem(group, "BSP1_2")
+        group = bsp12_alloc_item
+        group.connect("activate", self.on_bsp_alloc_changed)
+        bsp13_alloc_item = gtk.RadioMenuItem(group, "BSP1_3")
+        self.bsp_alloc_item_list = [(bsp12_alloc_item,
+                                mtd_part_alloc.use_bsp12_allocation,
+                                configs.BSP12_NAME),
+                                (bsp13_alloc_item,
+                                mtd_part_alloc.use_bsp13_allocation,
+                                configs.BSP13_NAME)]
+        for t in self.bsp_alloc_item_list:
+            bsp_alloc_menu.add(t[0])
+            if t[2] == self.options.bsp_alloc:
+                t[0].set_active(True)
+                t[1]()
+                type_call_dict.update_type_call_dict()
         gen_menu.append(bsp_alloc_item)
         
         reset_port_map_item = gtk.MenuItem("_Reset Port Map")
@@ -258,6 +302,8 @@ class usb_dlr_win(gtk.Window):
         gobject.idle_add(self._alert, msg, level)
 
     def start_manager(self, widget=None):
+        widget.set_sensitive(False)
+
         # self.pkg_path_entry.set_text("/opt2/bsp-packages/BSP12.7.5_DSIM_HVGA_20121012/BSP12_DSIM_HVGA_20121012_Image")
         if not self.map_img_buf():
             return

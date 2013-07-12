@@ -15,13 +15,13 @@ ERASE_TIMEOUT = 12 * 1000
 
 def usb_erase_dyn_id(usbdldev, dyn_id):
     dbg("Erasing dyn id")
-    set_part_dyn_id(dyn_id)
-    buf = dyn_id_part_info(usbdldev, dyn_id)
+    set_part_dyn_id(usbdldev, dyn_id)
+    buf = dyn_id_part_info(dyn_id)
     write_sectors(usbdldev, buf, USB_PROGRAMMER_ERASE_NAND_CMD, 1, ERASE_TIMEOUT)
     dbg("erase dyn id finished")
 
 
-def usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, is_yaffs2):
+def usb_erase_generic(usbdldev, mtd_part_start_addr, mtd_part_size, is_yaffs2=False):
     set_part_generic(usbdldev, mtd_part_start_addr, mtd_part_size, is_yaffs2)
     usbdldev.dev_info.set_fraction(0.01)
 

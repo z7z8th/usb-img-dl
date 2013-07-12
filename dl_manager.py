@@ -24,16 +24,17 @@ class dl_manager(threading.Thread):
 
     def run(self):
         pinfo("(II) dl_manager started")
-        LDR_ROM_idVendor  = 0x0851   #0x0851 #0x18d1
-        LDR_ROM_idProduct = 0x0002   #0x0002 #0x0fff
+        # LDR_ROM_idVendor  = 0x0851   #0x0851 #0x18d1
+        # LDR_ROM_idProduct = 0x0002   #0x0002 #0x0fff
+        id_vendor, id_product = self.dlr_opts.usb_id
 
         
         while True:
             with self.libusb_lock:
                 dev_list = usb.core.find(find_all = True, 
-                                backend = libusbx1.get_backend(),
-                                idVendor = LDR_ROM_idVendor,
-                                idProduct = LDR_ROM_idProduct)
+                                         backend = libusbx1.get_backend(),
+                                         idVendor = id_vendor,
+                                         idProduct = id_product)
                 print "(DD) after find"
                 if len(dev_list) == 0:
                     err("No Device Found!")
@@ -75,7 +76,7 @@ class dl_manager(threading.Thread):
             time.sleep(4)
 
     def update_dev_info_status(self, port_id_list, status=None,
-                               fraction=None, info=None):
+                               fraction=None, info=None, label=None):
         for i in port_id_list:
             if status is not None:
                 self.port_id_dev_info_dict[i].set_status(status)
@@ -83,13 +84,16 @@ class dl_manager(threading.Thread):
                 self.port_id_dev_info_dict[i].set_fraction(fraction)
             if info is not None:
                 self.port_id_dev_info_dict[i].set_info(info)
+            if label is not None:
+                self.port_id_dev_info_dict[i].set_label(label)
 
+                
     def update_running_set(self, cur_set):
         with self.running_set_lock:
             disconn_set = self.running_set - cur_set
             disconn_set = self.join_disconn_worker(disconn_set)
             self.running_set -= disconn_set
-            self.update_dev_info_status(disconn_set, "disconnect", 0, "Disconnected")
+            self.update_dev_info_status(disconn_set, "disconnect", 0, "Disconnected", None)
             for i in disconn_set:
                 self.port_id_dev_info_dict[i].port_id = None
 
