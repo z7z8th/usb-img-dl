@@ -72,7 +72,7 @@ update_type_call_dict()
 
 USAGE_MSG_HEADER = "Usage: %prog <options> <args> [path/to/img...]\n" \
 "Available partition/img type list are:\n"
-for type in 'bBrsmcuMidR':
+for type in 'bBrsmcuCMidR':
     USAGE_MSG_HEADER += "%s : %s\n" % (type, type_call_dict[type]['std_name'])
 USAGE_MSG_HEADER += "\nIf you specify more than one of dump/erase/burn,\n" \
         "dump will go first, then erase, then burn.\n"\

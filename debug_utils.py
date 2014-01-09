@@ -1,3 +1,4 @@
+import site   # for cx_freeze to import symbol exit(1)
 import io, os
 import inspect
 #import logging
