@@ -2,7 +2,7 @@ from cx_Freeze import setup, Executable
 
 # Dependencies are automatically detected, but it might need
 # fine tuning.
-buildOptions = dict(packages = ["progress", "py_sg"], excludes = [], zip_includes = ["data/ram_loader-1.0.12.img"])
+buildOptions = dict(packages = ["progress", "py_sg"], excludes = [], include_files = ["data/ram_loader-1.0.12.img"])
 
 base = 'Console'
 
