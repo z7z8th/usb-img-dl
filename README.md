@@ -8,4 +8,4 @@ USB Firmware download tool for Infomax's Android EVB board written in python.
 * `pip install pyusb progress`
 
 # Screenshot
-![usb dlr gtk](../../raw/usbdlr-rel1-gtk/docs/usb_dlr_win.png)
+![usb dlr gtk](docs/usb_dlr_win.png)
